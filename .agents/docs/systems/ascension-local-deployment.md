@@ -2,7 +2,8 @@
 
 Use the relevant sections for an authorized deployment or a change to deployment tooling.
 Routine source/documentation edits do not need this workflow. Follow current root authorization and build rules.
-Historical task installers are fixed plans, not generic tools. Both Launcher copies contain local changes.
+Historical task installers are fixed plans, not generic tools. The active client is
+`C:/Ascension/Launcher/resources/ascension-live`; it contains local changes. Launcher-Local was intentionally removed.
 
 ## Keep the change set coherent
 
