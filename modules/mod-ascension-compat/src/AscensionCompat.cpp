@@ -136,6 +136,13 @@ constexpr uint32 SPELL_REAPER_SCYTHE_RUSH_MARKER = 500377;
 // never for a resource cost, so nothing implemented the line and the window spent Soul Infusion
 // at the usual rate.
 constexpr uint32 SPELL_REAPER_HARVEST_TIME = 803995;
+// Frostbitten Battleplate of the Risen Nightmare, the Reaper's Icecrown tier. The four piece bonus
+// is the one part of the set that no DBC record can express: it keys off a Reaped Soul actually
+// being spent, which only this module knows about. 2990002 is the passive the set applies through
+// ItemSet.dbc; 2990003 is the Strength buff it hands out, capped at three stacks by its own
+// CumulativeAura.
+constexpr uint32 SPELL_REAPER_TIER_FROSTBITTEN_4P = 2990002;
+constexpr uint32 SPELL_REAPER_HARVESTED_MIGHT = 2990003;
 constexpr char ASCENSION_LOCAL_RESOURCE_PREFIX[] = "ASC_LOCAL_RESOURCE";
 constexpr char ASCENSION_ACTIVE_SPEC_SETTING[] = "core.ascension_active_spec";
 
@@ -2254,18 +2261,43 @@ private:
                 aura->ModStackAmount(amount - 1);
     }
 
-    static void ConsumeReaperSouls(Player* player,
+    // Four piece bonus: a stack of Harvested Might for every cast that actually spends souls, with
+    // the timer restarted so a rotation that keeps spending keeps all three stacks.
+    static void GrantHarvestedMight(Player* player)
+    {
+        if (!player->HasAura(SPELL_REAPER_TIER_FROSTBITTEN_4P))
+            return;
+
+        if (Aura* aura = player->GetAura(SPELL_REAPER_HARVESTED_MIGHT))
+        {
+            aura->ModStackAmount(1);
+            aura->RefreshDuration();
+            return;
+        }
+
+        player->AddAura(SPELL_REAPER_HARVESTED_MIGHT, player);
+    }
+
+    static void ConsumeReaperSouls(Player* player, SpellInfo const* spellInfo)
+    {
+        if (ConsumeReaperSoulsImpl(player, spellInfo))
+            GrantHarvestedMight(player);
+    }
+
+    // Returns whether the cast really spent something, so the caller knows when the set bonus fires.
+    static bool ConsumeReaperSoulsImpl(Player* player,
         SpellInfo const* spellInfo)
     {
         if (player->getClass() != CLASS_REAPER)
-            return;
+            return false;
 
         // Harvest Time suspends the cost outright rather than rolling for it. Checked before any
         // list so it covers every path below: the flat consumers, the Soul Infusion requirement and
         // the single-soul range. An eight second window a Reaper can plan a rotation around is what
-        // the ability is for; a coin flip per cast is not something the player can act on.
+        // the ability is for; a coin flip per cast is not something the player can act on. Nothing
+        // is spent, so the four piece bonus does not fire either.
         if (player->HasAura(SPELL_REAPER_HARVEST_TIME))
-            return;
+            return false;
 
         uint32 spellId = spellInfo->Id;
         if (std::find(REAPER_ALL_SOUL_CONSUMERS.begin(),
@@ -2274,7 +2306,7 @@ private:
         {
             player->RemoveAurasDueToSpell(SPELL_REAPER_REAPED_SOUL);
             player->RemoveAurasDueToSpell(SPELL_REAPER_SOUL_INFUSION);
-            return;
+            return true;
         }
 
         // Abilities that require Soul Infusion consume it together with the souls that granted it.
@@ -2282,7 +2314,7 @@ private:
             player->HasAura(SPELL_REAPER_SOUL_INFUSION))
         {
             player->CastSpell(player, SPELL_REAPER_SOUL_INFUSION_REMOVER, true);
-            return;
+            return true;
         }
 
         for (std::pair<uint32, uint32> const& range :
@@ -2291,9 +2323,11 @@ private:
             if (spellId >= range.first && spellId <= range.second)
             {
                 ModifyAuraStacks(player, SPELL_REAPER_REAPED_SOUL, -1);
-                return;
+                return true;
             }
         }
+
+        return false;
     }
 
     void DecayStatic(Player* player, uint32 diff) const
