@@ -2163,17 +2163,27 @@ private:
                 aura->ModStackAmount(amount - 1);
     }
 
+    // Harvest Time's tooltip is specific: it is about Soul Infusion, the buff its own effect names.
+    // Only a spell that requires Soul Infusion (CasterAuraSpell 803031) is therefore exempt. An
+    // ability paid for with Reaped Souls alone still pays - Sanguine Orb (500361) and Tormented
+    // Souls (500483) both carry CasterAuraSpell 500363, Reaped Soul, so an unscoped exemption made
+    // them free for a Reaper holding a single soul and no infusion at all.
+    static bool HarvestTimePreserves(Player const* player, SpellInfo const* spellInfo)
+    {
+        return spellInfo->CasterAuraSpell == SPELL_REAPER_SOUL_INFUSION &&
+            player->HasAura(SPELL_REAPER_HARVEST_TIME);
+    }
+
     static void ConsumeReaperSouls(Player* player,
         SpellInfo const* spellInfo)
     {
         if (player->getClass() != CLASS_REAPER)
             return;
 
-        // Harvest Time suspends the cost outright rather than rolling for it. Checked before any
-        // list so it covers every path below: the flat consumers, the Soul Infusion requirement and
-        // the single-soul range. An eight second window a Reaper can plan a rotation around is what
-        // the ability is for; a coin flip per cast is not something the player can act on.
-        if (player->HasAura(SPELL_REAPER_HARVEST_TIME))
+        // Harvest Time preserves the cost outright rather than rolling for it. An eight second
+        // window a Reaper can plan a rotation around is what the ability is for; a coin flip per
+        // cast is not something the player can act on.
+        if (HarvestTimePreserves(player, spellInfo))
             return;
 
         uint32 spellId = spellInfo->Id;
