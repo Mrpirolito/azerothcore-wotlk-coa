@@ -8489,16 +8489,23 @@ void Player::SendLoot(ObjectGuid guid, LootType loot_type)
             for (uint8 index = 0; index < count; ++index)
             {
                 uint8 slot, slotType;
-                data >> slot;
-                data.read_skip(5 * sizeof(uint32)); // Native LootItem packet fields
+                uint32 itemId, itemCount;
+                data >> slot >> itemId >> itemCount;
+                data.read_skip(3 * sizeof(uint32)); // Display, random suffix and random property
                 data >> slotType;
                 if (slotType != LOOT_SLOT_TYPE_ALLOW_LOOT && slotType != LOOT_SLOT_TYPE_OWNER)
+                    continue;
+                // Leave what does not fit on the corpse, but keep walking the view instead of
+                // aborting it: the serializer writes quest items after the normal ones, so a
+                // single unstorable drop would otherwise hide every later slot. Testing storage
+                // here also keeps the automatic retry silent, where Player::StoreLootItem would
+                // send an inventory error to the client on every companion tick.
+                ItemPosCountVec dest;
+                if (CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, itemId, itemCount) != EQUIP_ERR_OK)
                     continue;
                 sScriptMgr->OnPlayerAfterCreatureLoot(this);
                 InventoryResult result;
                 StoreLootItem(slot, loot, result);
-                if (result != EQUIP_ERR_OK)
-                    break; // Leave uncollected items on the corpse when bags are full.
             }
             WorldPacket money;
             m_session->HandleLootMoneyOpcode(money);
