@@ -93,12 +93,12 @@ struct Creature
     ObjectGuid guid{3},owner{1};bool alive=false,inRange=true,los=true,reward=true;
     Player* recipient=nullptr;Group* group=nullptr;
     Loot loot;std::list<Creature*> nearby;
-    CreatureTemplate definition;uint32 flags=UNIT_FLAG_SKINNABLE;int32 level=20;
+    CreatureTemplate definition;uint32 entry=0,flags=UNIT_FLAG_SKINNABLE;int32 level=20;
     CreatureTemplate const* GetCreatureTemplate()const{return &definition;}
     bool IsCreature()const{return true;}Creature* ToCreature(){return this;}
     uint32 GetUnitFlags()const{return flags;}void RemoveUnitFlag(uint32 value){flags&=~value;}
     void SetDynamicFlag(uint32){}bool IsCritter()const{return false;}bool isElite()const{return false;}
-    int32 GetLevel()const{return level;}
+    int32 GetLevel()const{return level;}uint32 GetEntry()const{return entry;}
     void GetDeadCreatureListInGrid(std::list<Creature*>& out,float radius,bool deadOnly)const
     {assert((radius==40 || radius==20) && deadOnly);out=nearby;}
     ObjectGuid GetGUID()const{return guid;}ObjectGuid GetOwnerGUID()const{return owner;}
@@ -276,6 +276,13 @@ int main()
         cosmetics.ProcessCompanionLoot(&c.player,1);assert(c.player.session.moneyCalls==2);
         cosmetics.collection->ActiveAppearances[38]=0;
         cosmetics.ProcessCompanionLoot(&c.player,1000);assert(c.player.session.moneyCalls==2);}
+    // Lootbot 3000 drives auto-loot from its creature entry alone, and never skinning. This also
+    // keeps the mock Creature honest about the members ProcessCompanionLoot actually reads.
+    {Case c;Cosmetics cosmetics;c.pet.nearby={&c.corpse};c.pet.entry=44022;
+        cosmetics.ProcessCompanionLoot(&c.player,1);assert(c.player.stored.size()==3);
+        cosmetics.ProcessCompanionLoot(&c.player,1,true);assert(!c.player.skillUps);}
+    {Case c;Cosmetics cosmetics;c.pet.nearby={&c.corpse};c.pet.entry=44023;
+        cosmetics.ProcessCompanionLoot(&c.player,1);assert(c.player.stored.empty());}
     {Case c;c.collect();assert((c.player.stored==std::vector<uint8>{0,1,2}));assert(c.player.session.moneyCalls==1);
         assert(c.player.session.releases==1 && !c.player.IsWithinLootDistance(&c.corpse));}
     {Case c;c.player.full=true;c.collect();assert(c.player.stored.empty() && !c.corpse.loot.items[0].is_looted);
@@ -326,7 +333,7 @@ int main()
                         str(cpp), '/Fe' + str(exe)], cwd=out, check=True, timeout=60)
         subprocess.run([str(exe)], cwd=out, check=True, timeout=15)
     print('PASS: native loot permissions, skinning admission/skill-ups, silent full-bag retry, '
-          'partial-fit slot skipping, wardrobe timers and scoped reach')
+          'partial-fit slot skipping, lootbot gating, wardrobe timers and scoped reach')
 
 
 if __name__ == '__main__':
