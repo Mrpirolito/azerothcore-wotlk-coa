@@ -2399,7 +2399,7 @@ private:
     // Harvest Time's tooltip is specific: it is about Soul Infusion, the buff its own effect names.
     // Only a spell that requires Soul Infusion (CasterAuraSpell 803031) is therefore exempt. An
     // ability paid for with Reaped Souls alone still pays - Sanguine Orb (500361) and Tormented
-    // Souls (500483) both carry CasterAuraSpell 500363, Reaped Soul, and an unscoped exemption made
+    // Souls (500483) both carry CasterAuraSpell 500363, Reaped Soul, so an unscoped exemption made
     // them free for a Reaper holding a single soul and no infusion at all.
     static bool HarvestTimePreserves(Player const* player, SpellInfo const* spellInfo)
     {
@@ -2447,6 +2447,7 @@ private:
         // bonus does not fire either.
         if (HarvestTimePreserves(player, spellInfo))
             return false;
+
         if (std::find(REAPER_ALL_SOUL_CONSUMERS.begin(),
                 REAPER_ALL_SOUL_CONSUMERS.end(), spellId) !=
             REAPER_ALL_SOUL_CONSUMERS.end())
@@ -4847,7 +4848,8 @@ public:
              PLAYERHOOK_ON_CREATE_INITIAL_ITEMS,
              PLAYERHOOK_ON_GET_AMMO_DISPLAY,
              PLAYERHOOK_ON_AFTER_UPDATE_ATTACK_POWER_AND_DAMAGE,
-             PLAYERHOOK_ON_SEND_INITIAL_PACKETS_BEFORE_ADD_TO_MAP}) {}
+             PLAYERHOOK_ON_SEND_INITIAL_PACKETS_BEFORE_ADD_TO_MAP,
+             PLAYERHOOK_CHECK_ITEM_IN_SLOT_AT_LOAD_INVENTORY}) {}
 
     void OnPlayerGetAmmoDisplay(Player* player, SpellInfo const* spellInfo,
         uint32& displayId, uint32& inventoryType) override
@@ -4949,6 +4951,30 @@ static void RestoreActionButtonsForGrantedSpells(Player* player)
             "Restored {} action button(s) for {} whose spells were granted after the bar loaded",
             restored, player->GetName());
 }
+  bool OnPlayerCheckItemInSlotAtLoadInventory(Player* player, Item* item, uint8 slot,
+      uint8& err, uint16& dest) override
+  {
+      if (!ascensionCompatConfig.GetConfigValue<bool>(AscensionCompatConfig::ENABLED) ||
+          slot != EQUIPMENT_SLOT_OFFHAND || player->getClass() != CLASS_SON_OF_ARUGAL)
+          return true;
+
+      // SynchronizeTaughtAbilities grants Dual Wield (674) from OnPlayerLogin, which runs only
+      // after inventory is already loaded, so CanDualWield() is still false here even when the
+      // player legitimately dual-wielded last session; the saved offhand item would otherwise
+      // fail EQUIP_ERR_CANT_DUAL_WIELD and get mailed back on every login. Only paper over that
+      // one not-yet-synced reason: SynchronizeTaughtAbilities's own AutoUnequipOffhandIfNeed()
+      // unequips it again moments later in the same login if the player is no longer eligible.
+      uint8 result = player->CanEquipItem(slot, dest, item, false, false);
+      if (result != EQUIP_ERR_CANT_DUAL_WIELD)
+      {
+          err = result;
+          return false;
+      }
+
+      dest = (INVENTORY_SLOT_BAG_0 << 8) | slot;
+      err = EQUIP_ERR_OK;
+      return false;
+  }
 
   void OnPlayerLogin(Player *player) override {
     if (ascensionCompatConfig.GetConfigValue<bool>(
@@ -5803,6 +5829,43 @@ class spell_ascension_local_mount : public SpellScript
     }
 };
 
+// Wildcard Mount (91944) is a plain SPELL_EFFECT_DUMMY spell with no built-in behavior of its own;
+// summon a random mount the player already owns, then let spell_ascension_local_mount above resolve
+// the correct speed/flying variant for it.
+class spell_ascension_wildcard_mount : public SpellScript
+{
+    PrepareSpellScript(spell_ascension_wildcard_mount);
+
+    bool Load() override
+    {
+        return ascensionCompatConfig.GetConfigValue<bool>(AscensionCompatConfig::ENABLED) &&
+            GetCaster()->IsPlayer();
+    }
+
+    void HandleDummy(SpellEffIndex effIndex)
+    {
+        PreventHitDefaultEffect(effIndex);
+        Player* player = GetHitPlayer();
+        if (!player)
+            return;
+
+        std::vector<uint32> known;
+        for (AscensionCollectibles::MountWrapper const& entry : AscensionCollectibles::MountWrappers)
+            if (player->HasSpell(entry.SpellId))
+                known.push_back(entry.SpellId);
+
+        if (known.empty())
+            return;
+
+        player->CastSpell(player, known[urand(0, uint32(known.size()) - 1)], true);
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_ascension_wildcard_mount::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
+    }
+};
+
 class npc_ascension_training_book : public CreatureScript
 {
 public:
@@ -5903,6 +5966,7 @@ void AddAscensionCompatScripts() {
   RegisterSpellScript(spell_ascension_experience_potion);
   RegisterSpellScript(spell_ascension_local_mount);
   RegisterSpellScript(spell_ascension_jailers_bargain);
+  RegisterSpellScript(spell_ascension_wildcard_mount);
   RegisterSpellScript(spell_ascension_legacy_quest_reward);
   new AscensionTradesmanScroll();
   new AscensionCompatServerScript();
