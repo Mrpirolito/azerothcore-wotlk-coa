@@ -4900,6 +4900,57 @@ public:
            AscensionClassService::Instance().InitializeLiveStarterKit(player);
   }
 
+// Player::_LoadActions runs inside Player::LoadFromDB, long before any script hook, and it drops
+// every action button whose spell IsActionButtonDataValid cannot verify. Worse, it marks the button
+// ACTIONBUTTON_DELETED, so Player::_SaveActions removes the row at the next save.
+//
+// The talent abilities this module restores at login are granted as temporary on purpose - they are
+// spec-scoped and SynchronizeAutomaticTalents removes them again when the specialization changes -
+// so they are never in character_spell when that check runs. A talent ability placed on the action
+// bar was therefore erased on every relog, while the ability itself came back a moment later.
+// Shudder Scythe (Transform) 572382 is the case that surfaced it.
+//
+// By the time this runs the spells are granted and the rows are still in character_action, because
+// _SaveActions has not run yet. Re-read them and restore the buttons whose spell the character now
+// knows. Player::addActionButton revalidates each one and flips a button marked deleted back to
+// ACTIONBUTTON_CHANGED, so the existing row is updated rather than inserted twice.
+static void RestoreActionButtonsForGrantedSpells(Player* player)
+{
+    if (!player || !IsAscensionCustomClass(player))
+        return;
+
+    CharacterDatabasePreparedStatement* stmt =
+        CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHARACTER_ACTIONS_SPEC);
+    stmt->SetData(0, player->GetGUID().GetRawValue());
+    stmt->SetData(1, player->GetActiveSpec());
+
+    PreparedQueryResult result = CharacterDatabase.Query(stmt);
+    if (!result)
+        return;
+
+    uint32 restored = 0;
+    do
+    {
+        Field* fields = result->Fetch();
+        uint8 const button = fields[0].Get<uint8>();
+        uint32 const action = fields[1].Get<uint32>();
+        uint8 const type = fields[2].Get<uint8>();
+
+        ActionButton const* existing = player->GetActionButton(button);
+        if (existing && existing->uState != ACTIONBUTTON_DELETED &&
+            existing->GetAction() == action && existing->GetType() == type)
+            continue;
+
+        if (player->addActionButton(button, action, type))
+            ++restored;
+    } while (result->NextRow());
+
+    if (restored)
+        LOG_INFO("module.ascension_compat",
+            "Restored {} action button(s) for {} whose spells were granted after the bar loaded",
+            restored, player->GetName());
+}
+
   void OnPlayerLogin(Player *player) override {
     if (ascensionCompatConfig.GetConfigValue<bool>(
             AscensionCompatConfig::ENABLED)) {
@@ -4908,6 +4959,7 @@ public:
       SynchronizeAscensionClassMechanics(player);
       AscensionResourceService::Instance().OnPlayerLogin(player);
       AscensionCollectionService::Instance().OnPlayerLogin(player);
+      RestoreActionButtonsForGrantedSpells(player);
     }
   }
 
