@@ -4919,12 +4919,11 @@ static void RestoreActionButtonsForGrantedSpells(Player* player)
     if (!player || !IsAscensionCustomClass(player))
         return;
 
-    CharacterDatabasePreparedStatement* stmt =
-        CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHARACTER_ACTIONS_SPEC);
-    stmt->SetData(0, player->GetGUID().GetRawValue());
-    stmt->SetData(1, player->GetActiveSpec());
-
-    PreparedQueryResult result = CharacterDatabase.Query(stmt);
+    // Not CHAR_SEL_CHARACTER_ACTIONS_SPEC: that statement is prepared CONNECTION_ASYNC only, so the
+    // synchronous connection has no handle for it and MySQLConnection::_Query asserts on m_mStmt.
+    QueryResult result = CharacterDatabase.Query(
+        "SELECT button, action, type FROM character_action WHERE guid = {} AND spec = {} ORDER BY button",
+        player->GetGUID().GetCounter(), uint32(player->GetActiveSpec()));
     if (!result)
         return;
 
