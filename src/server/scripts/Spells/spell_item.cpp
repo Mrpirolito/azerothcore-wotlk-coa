@@ -5146,6 +5146,24 @@ class spell_item_decahedral_dwarven_dice : public SpellScript
 };
 
 // 39446 - Aura of Madness
+// Aura of Madness and both Deathbringer's Will ranks pick their buff from a table indexed by class,
+// and every one of those tables stops at CLASS_DRUID. An Ascension class indexes past the last
+// initialized row into an empty vector, so the trinket procced, found nothing to cast, and neither
+// the buff nor the transform some of them carry ever landed.
+//
+// Resolve the row through GetLegacyClassForCustomClass, the fork's existing answer for WotLK
+// formulas with hard-coded per-class constants. One exception: it maps CLASS_REAPER to CLASS_ROGUE,
+// which suits the formulas that mapping was written for but not these tables - the Reaper wears
+// plate and scales off Strength, so it takes the Strength row the other plate classes already take.
+static Classes LegacyTrinketTableRowFor(Unit const* caster)
+{
+    Classes const playerClass = Classes(caster->getClass());
+    if (playerClass == CLASS_REAPER)
+        return CLASS_WARRIOR;
+
+    return GetLegacyClassForCustomClass(playerClass);
+}
+
 class spell_item_aura_of_madness : public AuraScript
 {
     PrepareAuraScript(spell_item_aura_of_madness);
@@ -5190,7 +5208,7 @@ class spell_item_aura_of_madness : public AuraScript
 
         PreventDefaultAction();
         Unit* caster = eventInfo.GetActor();
-        std::vector<uint32> const& randomSpells = triggeredSpells[caster->getClass()];
+        std::vector<uint32> const& randomSpells = triggeredSpells[LegacyTrinketTableRowFor(caster)];
         if (randomSpells.empty())
             return;
 
@@ -5302,7 +5320,7 @@ class spell_item_deathbringers_will_normal : public AuraScript
 
         PreventDefaultAction();
         Unit* caster = eventInfo.GetActor();
-        std::vector<uint32> const& randomSpells = triggeredSpells[caster->getClass()];
+        std::vector<uint32> const& randomSpells = triggeredSpells[LegacyTrinketTableRowFor(caster)];
         if (randomSpells.empty())
             return;
 
@@ -5349,7 +5367,7 @@ class spell_item_deathbringers_will_heroic : public AuraScript
 
         PreventDefaultAction();
         Unit* caster = eventInfo.GetActor();
-        std::vector<uint32> const& randomSpells = triggeredSpells[caster->getClass()];
+        std::vector<uint32> const& randomSpells = triggeredSpells[LegacyTrinketTableRowFor(caster)];
         if (randomSpells.empty())
             return;
 
