@@ -5158,7 +5158,13 @@ class spell_item_decahedral_dwarven_dice : public SpellScript
 static Classes LegacyTrinketTableRowFor(Unit const* caster)
 {
     Classes const playerClass = Classes(caster->getClass());
-    if (playerClass == CLASS_REAPER)
+
+    // Every plate class takes the Strength row. GetLegacyClassForCustomClass is tuned for the
+    // formulas it was written for, not for this one, and it sends three of them somewhere a plate
+    // melee cannot use: the Reaper to CLASS_ROGUE (Agility), the Sun Cleric to CLASS_PRIEST, whose
+    // row is empty, and the Starcaller and Primalist to CLASS_DRUID, whose row spends two of its
+    // three rolls on Agility and spell power.
+    if (AscensionClassWearsPlate(playerClass))
         return CLASS_WARRIOR;
 
     return GetLegacyClassForCustomClass(playerClass);
