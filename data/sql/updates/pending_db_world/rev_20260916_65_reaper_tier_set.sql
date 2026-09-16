@@ -86,3 +86,19 @@ VALUES
   (63003, 'Mythic Frostbitten Battleplate of the Risen Nightmare', 16712190, 992021, 992022, 992023, 992024, 992025, 2990001, 2, 2990002, 4, 0, 0),
   (63004, 'Ascended Frostbitten Battleplate of the Risen Nightmare', 16712190, 992031, 992032, 992033, 992034, 992035, 2990001, 2, 2990002, 4, 0, 0);
 
+
+-- item_set_names is what the tooltip reads for the "Frostbitten Battleplate (0/5)" line and for the
+-- slot each piece counts as. Without a row the core logs a warning per item and falls back to the
+-- item_template name, which would print the piece's own name where the set's belongs.
+DELETE FROM `item_set_names` WHERE `entry` BETWEEN 992001 AND 992099;
+INSERT INTO `item_set_names` (`entry`, `name`, `InventoryType`)
+SELECT `it`.`entry`,
+       CASE `it`.`itemset`
+           WHEN 63001 THEN 'Frostbitten Battleplate of the Risen Nightmare'
+           WHEN 63002 THEN 'Sanctified Frostbitten Battleplate of the Risen Nightmare'
+           WHEN 63003 THEN 'Mythic Frostbitten Battleplate of the Risen Nightmare'
+           ELSE 'Ascended Frostbitten Battleplate of the Risen Nightmare'
+       END,
+       `it`.`InventoryType`
+FROM `item_template` AS `it`
+WHERE `it`.`entry` BETWEEN 992001 AND 992099;
