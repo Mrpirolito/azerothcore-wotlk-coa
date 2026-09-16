@@ -600,6 +600,23 @@ bool CanGrantAscensionRacialSpell(Player const* player, uint32 spellId)
     return !racial;
 }
 
+// Player::_addSpell files a grant made while the session is still loading as PLAYERSPELL_UNCHANGED,
+// which Player::_SaveSpells reads as "already stored in character_spell" and never writes out. The
+// ability is therefore missing from character_spell at the next login, and Player::_LoadActions runs
+// long before any script hook: it drops every action button pointing at a spell the character does
+// not yet know, and deletes the row. That is why an ability placed on the bar vanished on every
+// relog while the ability itself came back a moment later - Shudder Scythe (Transform) 572382 was
+// granted fresh each login and never stored, so the bar had nothing to point at when it loaded.
+//
+// Mark each restored grant so it reaches character_spell and is known before the bar loads.
+// Player::MarkSpellForSave only promotes PLAYERSPELL_UNCHANGED, so a spell that was already stored
+// is untouched.
+static void LearnRestoredSpell(Player* player, uint32 spellId)
+{
+    LearnRestoredSpell(player, spellId);
+    player->MarkSpellForSave(spellId);
+}
+
 class AscensionClassService {
 public:
   static AscensionClassService &Instance() {
@@ -680,7 +697,7 @@ public:
     for (uint32 spellId : racialSpells)
         if (!player->HasSpell(spellId) && sSpellMgr->GetSpellInfo(spellId))
         {
-            player->learnSpell(spellId, false);
+            LearnRestoredSpell(player, spellId);
             ++learned;
         }
     for (auto const& entry : AscensionLiveBaseline::Spells)
@@ -688,7 +705,7 @@ public:
           CanGrantAscensionRacialSpell(player, entry.SpellId) &&
           !player->HasSpell(entry.SpellId) && sSpellMgr->GetSpellInfo(entry.SpellId))
       {
-        player->learnSpell(entry.SpellId, false);
+        LearnRestoredSpell(player, entry.SpellId);
         ++learned;
       }
     for (AscensionCompatData::ClassSpell const &progressionSpell :
@@ -707,7 +724,7 @@ public:
         continue;
       }
 
-      player->learnSpell(progressionSpell.SpellId, false);
+      LearnRestoredSpell(player, progressionSpell.SpellId);
       ++learned;
     }
 
@@ -723,7 +740,7 @@ public:
 
         if (sSpellMgr->GetSpellInfo(rank.SpellId))
         {
-            player->learnSpell(rank.SpellId, false);
+            LearnRestoredSpell(player, rank.SpellId);
             ++learned;
         }
     }
@@ -947,7 +964,7 @@ public:
         {
           if (sSpellMgr->GetSpellInfo(definition.SpellId))
           {
-            player->learnSpell(definition.SpellId, false);
+            LearnRestoredSpell(player, definition.SpellId);
             ++learned;
           }
           else
@@ -1577,7 +1594,7 @@ private:
                 if (!spellId || player->HasSpell(spellId) || !sSpellMgr->GetSpellInfo(spellId))
                     continue;
 
-                player->learnSpell(spellId, false);
+                LearnRestoredSpell(player, spellId);
                 ++learned;
                 changed = true;
             }
@@ -2379,6 +2396,17 @@ private:
         player->AddAura(SPELL_REAPER_HARVESTED_MIGHT, player);
     }
 
+    // Harvest Time's tooltip is specific: it is about Soul Infusion, the buff its own effect names.
+    // Only a spell that requires Soul Infusion (CasterAuraSpell 803031) is therefore exempt. An
+    // ability paid for with Reaped Souls alone still pays - Sanguine Orb (500361) and Tormented
+    // Souls (500483) both carry CasterAuraSpell 500363, Reaped Soul, and an unscoped exemption made
+    // them free for a Reaper holding a single soul and no infusion at all.
+    static bool HarvestTimePreserves(Player const* player, SpellInfo const* spellInfo)
+    {
+        return spellInfo->CasterAuraSpell == SPELL_REAPER_SOUL_INFUSION &&
+            player->HasAura(SPELL_REAPER_HARVEST_TIME);
+    }
+
     // True when the spell had at least one target other than the caster and every such target
     // missed, dodged or parried it. Neutral creatures count: hostility is not required to attack.
     static bool WasAvoidedByEveryTarget(Player const* player, Spell* spell)
@@ -2410,16 +2438,15 @@ private:
         if (player->getClass() != CLASS_REAPER)
             return false;
 
-        // Harvest Time suspends the cost outright rather than rolling for it. Checked before any
-        // list so it covers every path below: the flat consumers, the Soul Infusion requirement and
-        // the single-soul range. An eight second window a Reaper can plan a rotation around is what
-        // the ability is for; a coin flip per cast is not something the player can act on. Nothing
-        // is spent, so the four piece bonus does not fire either.
-        if (player->HasAura(SPELL_REAPER_HARVEST_TIME))
-            return false;
-
         SpellInfo const* spellInfo = spell->GetSpellInfo();
         uint32 spellId = spellInfo->Id;
+
+        // Harvest Time preserves the cost outright rather than rolling for it - an eight second
+        // window a Reaper can plan a rotation around is what the ability is for, and a coin flip
+        // per cast is not something the player can act on. Nothing is spent, so the four piece set
+        // bonus does not fire either.
+        if (HarvestTimePreserves(player, spellInfo))
+            return false;
         if (std::find(REAPER_ALL_SOUL_CONSUMERS.begin(),
                 REAPER_ALL_SOUL_CONSUMERS.end(), spellId) !=
             REAPER_ALL_SOUL_CONSUMERS.end())
@@ -2843,7 +2870,7 @@ public:
         for (uint32 spellId : {SPELL_RIDING_APPRENTICE, SPELL_RIDING_JOURNEYMAN,
             SPELL_RIDING_EXPERT, SPELL_RIDING_ARTISAN, SPELL_COLD_WEATHER_FLYING})
             if (sSpellMgr->GetSpellInfo(spellId) && !player->HasSpell(spellId))
-                player->learnSpell(spellId, false);
+                LearnRestoredSpell(player, spellId);
 
         player->SetSkill(SKILL_RIDING, 4, 300, 300);
     }
@@ -2864,7 +2891,7 @@ public:
         std::size_t learned = 0;
         for (uint32 spellId : spells)
         {
-            player->learnSpell(spellId, false);
+            LearnRestoredSpell(player, spellId);
             if (!player->HasSpell(spellId))
                 continue;
 
@@ -2960,7 +2987,7 @@ public:
         std::size_t learned = 0;
         for (uint32 spellId : GetMissingBankSpells(player, state))
         {
-            player->learnSpell(spellId, false);
+            LearnRestoredSpell(player, spellId);
             if (player->HasSpell(spellId))
                 ++learned;
         }
@@ -3050,7 +3077,7 @@ public:
         {
             uint32 const spellId = state->PendingCompanionSpells[state->NextCompanionSpell++];
             if (!player->HasSpell(spellId))
-                player->learnSpell(spellId, false);
+                LearnRestoredSpell(player, spellId);
         }
 
         if (state->NextCompanionSpell == state->PendingCompanionSpells.size())
@@ -4693,7 +4720,7 @@ public:
     }
 
     if (rank > 0)
-        player->learnSpell(selectedSpellId, false);
+        LearnRestoredSpell(player, selectedSpellId);
 
     AscensionClassService::Instance().SynchronizeProgression(player);
 
