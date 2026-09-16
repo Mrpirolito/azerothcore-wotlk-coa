@@ -59,7 +59,7 @@ void ClearReplacement(Player* player, uint32 word, uint32 mask);
 void ApplyContracts(SpellInfo* info);
 bool InSmoke(Unit const* attacker, Unit const* target);
 void CallHounds(Player* player, Unit* target);
-void SummonHounds(Player* player, uint32 count, uint32 duration, Unit* target = nullptr);
+void SummonHounds(Player* player, uint32 count, uint32 duration, uint32 spellId, Unit* target = nullptr);
 } // namespace AscensionWitchHunter
 
 #endif

@@ -368,7 +368,7 @@ class spell_ascension_witch_hunter_ability : public SpellScript
         if (id == 802273)
         {
             if (player->HasAura(705450))
-                SummonHounds(player, 1, sSpellMgr->GetSpellInfo(803886)->GetDuration(), target);
+                SummonHounds(player, 1, sSpellMgr->GetSpellInfo(803886)->GetDuration(), 803886, target);
             CallHounds(player, target);
         }
         if (Family(info, 2, 8))
@@ -376,7 +376,7 @@ class spell_ascension_witch_hunter_ability : public SpellScript
             talent(705463, 680275);
             uint32 chance = player->HasAura(707891) ? 50 : player->HasAura(706365) ? 25 : 0;
             if (chance && roll_chance_i(chance))
-                SummonHounds(player, 1, sSpellMgr->GetSpellInfo(707890)->GetDuration(), target);
+                SummonHounds(player, 1, sSpellMgr->GetSpellInfo(707890)->GetDuration(), 707890, target);
         }
         if (Family(info, 2, 512) && id != 802826 && player->HasAura(680513))
         {
