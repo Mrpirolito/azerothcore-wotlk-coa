@@ -56,6 +56,7 @@
 #include "DatabaseEnv.h"
 #include "DBCStores.h"
 #include "GossipDef.h"
+#include "GameTime.h"
 #include "GlobalScript.h"
 #include "Item.h"
 #include "ItemScript.h"
@@ -150,6 +151,10 @@ enum CompanionLoot : uint32
 
 constexpr uint8 PYROMANCER_HEAT_PER_EMBER = 100;
 constexpr uint8 REAPER_SOUL_FRAGMENT_COST = 3;
+
+// How long after entering the world a specialization message still counts as the
+// client resyncing rather than the player switching.
+constexpr int64 LOGIN_RESYNC_GRACE_SECONDS = 30;
 
 constexpr std::array<uint32, 12> REAPER_ALL_SOUL_CONSUMERS =
 {{
@@ -1156,10 +1161,78 @@ public:
     if (specializationId)
         _activeSpecializations[player->GetGUID().GetCounter()] = specializationId;
 
+    // The client resends its active specialization right after entering the world.
+    // That is a resync, not a player changing specialization, and it must never be
+    // answered with a refund. See SwitchSpecialization.
+    _loginResyncUntil[player->GetGUID().GetCounter()] =
+        GameTime::GetGameTime().count() + LOGIN_RESYNC_GRACE_SECONDS;
+
     SynchronizeProgression(player);
     SynchronizeProficiencies(player);
     RepairStarterKit(player, false);
     SendCharacterAdvancementAuthentication(player);
+    SendOwnedTalentSpells(player);
+  }
+
+  // The client rebuilds its talent tree from its own spellbook, but two kinds of
+  // talent spell never reach it: a hidden one (SPELL_ATTR0_DO_NOT_DISPLAY), which
+  // is most passives, and the base rank of a ranked spell, which Player::addSpell
+  // deactivates once a higher rank is learned so SendInitialSpells skips it
+  // entirely. Measured on a level 60 Knight of Xoroth owning 37 talents, the
+  // client could account for 4, and every other node drew as unspent after a
+  // relog even though the server still held the spells.
+  //
+  // Report what the character really owns, unprompted at login, so the tree is
+  // right from the first frame instead of after a round trip.
+  static void SendOwnedTalentSpells(Player *player) {
+    if (!IsAscensionCustomClass(player))
+      return;
+
+    // HasSpell deliberately, not HasActiveSpell: a superseded base rank is still
+    // owned, and it is exactly the case the client cannot see.
+    std::set<uint32> owned;
+    for (AscensionCompatData::CoATalentEntry const &entry :
+         AscensionCompatData::CoATalentEntries)
+    {
+      if (entry.ClassId != player->getClass())
+        continue;
+
+      for (uint32 spellId : entry.SpellIds)
+        if (spellId && player->HasSpell(spellId))
+          owned.insert(spellId);
+    }
+
+    ChatHandler chat(player->GetSession());
+    std::string batch;
+    for (uint32 spellId : owned)
+    {
+      if (!batch.empty())
+        batch += ',';
+      batch += std::to_string(spellId);
+
+      // Keep each line well inside the chat length the client will accept.
+      if (batch.size() >= 180)
+      {
+        chat.PSendSysMessage("CoATalentSync:{}", batch);
+        batch.clear();
+      }
+    }
+
+    if (!batch.empty())
+      chat.PSendSysMessage("CoATalentSync:{}", batch);
+
+    // C_CharacterAdvancement.GetActiveChrSpec returns nil on this server -- the
+    // service it belongs to does not exist -- so the client cannot tell which
+    // specialization it is on and shows the picker as unchosen. Send the stored
+    // value with the same batch.
+    uint32 const activeSpec = Instance().GetActiveSpecialization(player);
+    if (activeSpec)
+      chat.PSendSysMessage("CoATalentSync:spec={}", activeSpec);
+
+    chat.PSendSysMessage("CoATalentSync:end");
+    LOG_INFO("module.ascension_compat",
+        "Reported {} owned talent spells and specialization {} to {} (class {})",
+        owned.size(), activeSpec, player->GetName(), uint32(player->getClass()));
   }
 
   void SendCharacterAdvancementAuthentication(Player *player) {
@@ -1195,8 +1268,19 @@ public:
       return false;
 
     uint32 const previousSpecialization = GetActiveSpecialization(player);
-    if (!previousSpecialization || previousSpecialization == specializationId)
+
+    // The stored specialization can disagree with the client's: it is also set from
+    // the first spec-bound talent a character ever picks, which need not be the tab
+    // the player actually plays. Answering the login resync with a full refund then
+    // deletes a whole build. Inside the grace window the client's value simply wins.
+    bool const loginResync = IsWithinLoginResync(player);
+    if (!previousSpecialization || previousSpecialization == specializationId || loginResync)
     {
+        if (loginResync && previousSpecialization && previousSpecialization != specializationId)
+            LOG_INFO("module.ascension_compat",
+                "Adopted client specialization {} for {} (class {}) over stored {} without refunding: login resync",
+                specializationId, player->GetName(), uint32(player->getClass()), previousSpecialization);
+
       _activeSpecializations[player->GetGUID().GetCounter()] =
           specializationId;
       player->UpdatePlayerSetting(ASCENSION_ACTIVE_SPEC_SETTING, 0, specializationId);
@@ -1266,6 +1350,12 @@ public:
     _tuningUpdates.erase(player->GetGUID());
     _activeSpecializations.erase(player->GetGUID().GetCounter());
     _proficiencySynchronizations.erase(player->GetGUID().GetCounter());
+    _loginResyncUntil.erase(player->GetGUID().GetCounter());
+  }
+
+  bool IsWithinLoginResync(Player const *player) const {
+    auto itr = _loginResyncUntil.find(player->GetGUID().GetCounter());
+    return itr != _loginResyncUntil.end() && GameTime::GetGameTime().count() < itr->second;
   }
 
     static uint32 GetSelectableFreeGroup(uint32 entryId)
@@ -1389,6 +1479,7 @@ private:
 
   std::unordered_map<ObjectGuid, uint32> _tuningUpdates;
   std::unordered_map<uint32, uint32> _activeSpecializations;
+  std::unordered_map<uint32, int64> _loginResyncUntil;
   std::unordered_set<uint32> _proficiencySynchronizations;
 };
 
@@ -3652,6 +3743,7 @@ public:
          Console::No},
         {"localvanity", HandleLocalVanityCommand, SEC_PLAYER, Console::No},
         {"localtalent", HandleLocalTalentCommand, SEC_PLAYER, Console::No},
+        {"localtalentsync", HandleLocalTalentSyncCommand, SEC_PLAYER, Console::No},
         {"localspec", HandleLocalSpecCommand, SEC_PLAYER, Console::No},
         {"localresource", HandleLocalResourceCommand, SEC_PLAYER,
          Console::No},
@@ -3681,6 +3773,17 @@ public:
 
     AscensionCollectionService::Instance().DeliverLocalVanityItem(player,
                                                                    itemId);
+    return true;
+  }
+
+  // Manual re-sync, for a session that reconnected without a fresh login.
+  static bool HandleLocalTalentSyncCommand(ChatHandler *handler)
+  {
+    Player *player = handler->GetPlayer();
+    if (!player)
+      return false;
+
+    AscensionClassService::SendOwnedTalentSpells(player);
     return true;
   }
 
