@@ -4946,10 +4946,17 @@ static void RestoreActionButtonsForGrantedSpells(Player* player)
             ++restored;
     } while (result->NextRow());
 
-    if (restored)
-        LOG_INFO("module.ascension_compat",
-            "Restored {} action button(s) for {} whose spells were granted after the bar loaded",
-            restored, player->GetName());
+    if (!restored)
+        return;
+
+    // SMSG_ACTION_BUTTONS already went out during login, before these buttons existed again, so the
+    // client is still drawing the bar it was handed then: the icon reappears only if the player
+    // drags it back. Send the bar again now that it is correct.
+    player->SendInitialActionButtons();
+
+    LOG_INFO("module.ascension_compat",
+        "Restored {} action button(s) for {} whose spells were granted after the bar loaded",
+        restored, player->GetName());
 }
   bool OnPlayerCheckItemInSlotAtLoadInventory(Player* player, Item* item, uint8 slot,
       uint8& err, uint16& dest) override

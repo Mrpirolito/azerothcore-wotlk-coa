@@ -37,7 +37,11 @@ class CreatureGroup;
 // max different by z coordinate for creature aggro reaction
 #define CREATURE_Z_ATTACK_RANGE 3
 
-#define MAX_VENDOR_ITEMS 150    // Limitation in 3.x.x item count in SMSG_LIST_INVENTORY
+// SMSG_LIST_INVENTORY writes its item count as a uint8 and WorldSession::SendListInventory
+// stops filling the packet at this number, so 255 is the real ceiling the protocol imposes.
+// 150 was below it, and a vendor carrying more simply lost the tail of its list: Horace
+// Hunderland sells 160 items and the last ten never reached the client.
+#define MAX_VENDOR_ITEMS 255    // uint8 item count in SMSG_LIST_INVENTORY
 
 //used for handling non-repeatable random texts
 typedef std::vector<uint8> CreatureTextRepeatIds;

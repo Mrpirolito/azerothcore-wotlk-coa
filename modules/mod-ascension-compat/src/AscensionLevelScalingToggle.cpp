@@ -30,8 +30,7 @@ enum LevelScalingToggle : uint32
     // npc_text row added alongside the creature template.
     GossipTextScaling = 990010,
 
-    ActionToggleCreature = GOSSIP_ACTION_INFO_DEF + 1,
-    ActionToggleQuest = GOSSIP_ACTION_INFO_DEF + 2
+    ActionToggleScaling = GOSSIP_ACTION_INFO_DEF + 1
 };
 
 bool ResolveStored(uint32 worldStateId, bool configured)
@@ -61,15 +60,14 @@ public:
     {
         ClearGossipMenuFor(player);
 
-        bool const creatureScaling = LocalLevelScaling::CreatureEnabled.load(std::memory_order_relaxed);
-        bool const questScaling = LocalLevelScaling::QuestEnabled.load(std::memory_order_relaxed);
+        // One switch, not two. Creature and quest scaling are halves of the same thing - a world
+        // that rises to meet the player - and a realm that wants one without the other has never
+        // come up. Read the creature flag for the label; Toggle keeps both in step.
+        bool const scaling = LocalLevelScaling::CreatureEnabled.load(std::memory_order_relaxed);
 
         AddGossipItemFor(player, GOSSIP_ICON_CHAT,
-            creatureScaling ? "Creature scaling is ON - turn it off." : "Creature scaling is OFF - turn it on.",
-            GOSSIP_SENDER_MAIN, ActionToggleCreature);
-        AddGossipItemFor(player, GOSSIP_ICON_CHAT,
-            questScaling ? "Quest scaling is ON - turn it off." : "Quest scaling is OFF - turn it on.",
-            GOSSIP_SENDER_MAIN, ActionToggleQuest);
+            scaling ? "Level scaling is ON - turn it off." : "Level scaling is OFF - turn it on.",
+            GOSSIP_SENDER_MAIN, ActionToggleScaling);
 
         SendGossipMenuFor(player, GossipTextScaling, creature->GetGUID());
         return true;
@@ -83,23 +81,17 @@ public:
             return true;
         }
 
-        if (action == ActionToggleCreature)
-        {
-            bool const enabled = !LocalLevelScaling::CreatureEnabled.load(std::memory_order_relaxed);
-            LocalLevelScaling::CreatureEnabled.store(enabled, std::memory_order_relaxed);
-            Store(WorldStateCreatureScaling, enabled);
-        }
-        else if (action == ActionToggleQuest)
-        {
-            bool const enabled = !LocalLevelScaling::QuestEnabled.load(std::memory_order_relaxed);
-            LocalLevelScaling::QuestEnabled.store(enabled, std::memory_order_relaxed);
-            Store(WorldStateQuestScaling, enabled);
-        }
-        else
+        if (action != ActionToggleScaling)
         {
             CloseGossipMenuFor(player);
             return true;
         }
+
+        bool const enabled = !LocalLevelScaling::CreatureEnabled.load(std::memory_order_relaxed);
+        LocalLevelScaling::CreatureEnabled.store(enabled, std::memory_order_relaxed);
+        LocalLevelScaling::QuestEnabled.store(enabled, std::memory_order_relaxed);
+        Store(WorldStateCreatureScaling, enabled);
+        Store(WorldStateQuestScaling, enabled);
 
         // Creatures already in the world keep the level they spawned with either way; the switch
         // applies from the next spawn. Reopen the menu so the new state is visible immediately.
