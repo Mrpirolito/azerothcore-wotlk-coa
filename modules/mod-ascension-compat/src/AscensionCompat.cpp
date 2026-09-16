@@ -5871,37 +5871,6 @@ private:
     std::unordered_map<uint32, uint32> _selectedTrainers;
 };
 
-// Jailer's Bargain promises a shield worth 30% of the caster's maximum health,
-// but its absorb effect carries no base points at all, so the aura lands at one
-// point of absorption. Nothing computed it, so compute it here.
-class spell_ascension_jailers_bargain : public AuraScript
-{
-    PrepareAuraScript(spell_ascension_jailers_bargain);
-
-    static constexpr uint8 AbsorbPercent = 30;
-
-    bool Load() override
-    {
-        return ascensionCompatConfig.GetConfigValue<bool>(AscensionCompatConfig::ENABLED) &&
-            GetUnitOwner() && GetUnitOwner()->IsPlayer();
-    }
-
-    void CalculateAmount(AuraEffect const* /*effect*/, int32& amount, bool& canBeRecalculated)
-    {
-        if (Unit* owner = GetUnitOwner())
-            amount = int32(owner->GetMaxHealth() * AbsorbPercent / 100);
-
-        // Fixed at cast, like every other percentage-of-health shield: a health
-        // buff landing mid-duration must not resize what is already absorbing.
-        canBeRecalculated = false;
-    }
-
-    void Register() override
-    {
-        DoEffectCalcAmount += AuraEffectCalcAmountFn(spell_ascension_jailers_bargain::CalculateAmount,
-            EFFECT_0, SPELL_AURA_SCHOOL_ABSORB);
-    }
-};
 
 bool HandleAscensionGuideTrainerBuy(Player* player, ObjectGuid trainerGuid, uint32 spellId)
 {
