@@ -238,8 +238,10 @@ bool Summon(Player* player, uint32 spell, Unit* target, Position const& position
                 created = true;
                 // CreatureAI::EnterEvadeMode re-follows on GetFollowAngle(), so storing the
                 // slot's angle keeps the army spread after every fight, not just at spawn.
-                if (!stationary)
-                    unit->SetFollowAngle(angle);
+                // The setter lives on Minion, not on the TempSummon SummonCreature returns;
+                // properties 61 builds a Guardian, so the guard is exact, not defensive.
+                if (!stationary && unit->IsGuardian())
+                    static_cast<Minion*>(unit)->SetFollowAngle(angle);
                 unit->GetMotionMaster()->Clear();
                 if (row.creature == 523032)
                 {
@@ -294,6 +296,10 @@ class npc_ascension_necromancer : public ScriptedAI
     uint8 _cost = 0;
     bool _exploded = false;
     float _inheritedSpeed = 1.0f;
+    // The range the script last asked MoveFollow for. GetFollowAngle() is stored on the
+    // minion and survives the core's own re-follows, but the range is not, so it only
+    // exists here; 0 means "no follow of ours is running" and forces a re-issue.
+    float _followRange = 0.0f;
 
     void IsSummonedBy(WorldObject* summoner) override
     {
@@ -374,6 +380,37 @@ class npc_ascension_necromancer : public ScriptedAI
         if (player && !Stationary(me->GetEntry()) && !player->HasAura(500983) && target &&
             player->IsValidAttackTarget(target))
             ScriptedAI::AttackStart(target);
+    }
+    // Put this minion back on its formation slot. Re-issue only when the slot moved, when
+    // the range was lost or when no follow is running, so the idle tick does not restart
+    // pathing every second.
+    void Regroup(Player* player)
+    {
+        float distance = PET_FOLLOW_DIST;
+        float angle = PET_FOLLOW_ANGLE;
+        Formation(FormationSlot(player, me), distance, angle);
+        if (std::fabs(_followRange - distance) < 0.01f && std::fabs(me->GetFollowAngle() - angle) < 0.01f &&
+            me->GetMotionMaster()->GetCurrentMovementGeneratorType() == FOLLOW_MOTION_TYPE)
+            return;
+        if (me->IsGuardian())
+            static_cast<Minion*>(me)->SetFollowAngle(angle);
+        _followRange = distance;
+        me->GetMotionMaster()->MoveFollow(player, distance, angle);
+    }
+    // CreatureAI::EnterEvadeMode re-follows owned creatures at the hardcoded PET_FOLLOW_DIST.
+    // It restores the stored angle, so nothing the minion carries shows that the ring
+    // distance was dropped, and every minion outside ring 0 falls back onto the innermost
+    // circle as soon as combat ends. Forget the cached range and rebuild the slot instead.
+    void EnterEvadeMode(EvadeReason why) override
+    {
+        ScriptedAI::EnterEvadeMode(why);
+        _followRange = 0.0f;
+        Player* player = Owner(me);
+        if (!player || !me->IsAlive() || Stationary(me->GetEntry()) || me->GetEntry() == 523032 ||
+            player->HasAura(500983) ||
+            me->GetMotionMaster()->GetCurrentMovementGeneratorType() != FOLLOW_MOTION_TYPE)
+            return;
+        Regroup(player);
     }
     void DoAction(int32 action) override
     {
@@ -505,22 +542,9 @@ class npc_ascension_necromancer : public ScriptedAI
                     if (target)
                         AttackStart(target);
                     else
-                    {
                         // One shared PET_FOLLOW_ANGLE sent the whole army to a single point.
-                        // Re-follow on this minion's own slot, and only when that slot moved
-                        // or no follow is running, so the tick does not restart pathing every
-                        // second. GetFollowAngle() carries the angle issued last time.
-                        float distance = PET_FOLLOW_DIST;
-                        float angle = PET_FOLLOW_ANGLE;
-                        Formation(FormationSlot(player, me), distance, angle);
-                        if (std::fabs(me->GetFollowAngle() - angle) > 0.01f ||
-                            me->GetMotionMaster()->GetCurrentMovementGeneratorType() != FOLLOW_MOTION_TYPE)
-                        {
-                            if (TempSummon* summon = me->ToTempSummon())
-                                summon->SetFollowAngle(angle);
-                            me->GetMotionMaster()->MoveFollow(player, distance, angle);
-                        }
-                    }
+                        // Re-follow on this minion's own slot instead.
+                        Regroup(player);
                 }
                 if (me->GetEntry() == 50132 && player->HasAura(500730) && me->IsWithinDistInMap(player, 3.0f))
                 {
