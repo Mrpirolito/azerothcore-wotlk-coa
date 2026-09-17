@@ -2450,12 +2450,6 @@ private:
 
         SpellInfo const* spellInfo = spell->GetSpellInfo();
 
-        // Harvest Time preserves the cost outright rather than rolling for it. An eight second
-        // window a Reaper can plan a rotation around is what the ability is for; a coin flip per
-        // cast is not something the player can act on.
-        if (HarvestTimePreserves(player, spellInfo))
-            return;
-
         uint32 spellId = spellInfo->Id;
 
         // Harvest Time preserves the cost outright rather than rolling for it - an eight second
