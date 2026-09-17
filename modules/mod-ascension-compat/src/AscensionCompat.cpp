@@ -1948,6 +1948,23 @@ public:
         SendClientState(player, false);
     }
 
+    // Whether this spell is one that deals damage at all.
+    //
+    // The damage figure this hook receives is what survived the target's mitigation, and a training
+    // dummy zeroes it outright - npc_training_dummy::DamageTaken sets damage = 0 on every hit. So a
+    // Reaper checking a rotation on a dummy generated no Soul Fragments and no Runic Power from Reap
+    // or Wraithblade, while the same casts worked on a real target. Resource generation is a
+    // property of the ability, not of what the target did with the damage, so read it off the spell.
+    static bool SpellDealsDamage(SpellInfo const* spellInfo)
+    {
+        return spellInfo &&
+            (spellInfo->HasEffect(SPELL_EFFECT_SCHOOL_DAMAGE) ||
+                spellInfo->HasEffect(SPELL_EFFECT_WEAPON_DAMAGE) ||
+                spellInfo->HasEffect(SPELL_EFFECT_WEAPON_DAMAGE_NOSCHOOL) ||
+                spellInfo->HasEffect(SPELL_EFFECT_WEAPON_PERCENT_DAMAGE) ||
+                spellInfo->HasEffect(SPELL_EFFECT_NORMALIZED_WEAPON_DMG));
+    }
+
     void OnSpellHitResult(Spell* spell, Unit* target, uint8 missInfo,
         uint32 damage, bool critical) const
     {
@@ -1962,6 +1979,7 @@ public:
         // This hook runs after damage. Keep killing blows and neutral/yellow
         // enemies eligible without accepting friendly or self targets.
         bool hostile = target != player && !player->IsFriendlyTo(target);
+        bool damaging = damage > 0 || SpellDealsDamage(spell->GetSpellInfo());
         uint32 spellId = spell->GetSpellInfo()->Id;
         std::array<int8, 9> firstEventState = {};
         bool changed = false;
@@ -1992,18 +2010,18 @@ public:
                     qualifies = successful && hostile;
                     break;
                 case AscensionCompatData::ResourceGainEvent::FirstSuccessfulDamagingHit:
-                    qualifies = successful && hostile && damage;
+                    qualifies = successful && hostile && damaging;
                     firstOnly = true;
                     break;
                 case AscensionCompatData::ResourceGainEvent::EachSuccessfulDamagingHit:
-                    qualifies = successful && hostile && damage;
+                    qualifies = successful && hostile && damaging;
                     break;
                 case AscensionCompatData::ResourceGainEvent::FirstCriticalDamagingHit:
-                    qualifies = successful && hostile && damage && critical;
+                    qualifies = successful && hostile && damaging && critical;
                     firstOnly = true;
                     break;
                 case AscensionCompatData::ResourceGainEvent::EachCriticalDamagingHit:
-                    qualifies = successful && hostile && damage && critical;
+                    qualifies = successful && hostile && damaging && critical;
                     break;
                 default:
                     break;
@@ -2053,18 +2071,18 @@ public:
                     qualifies = successful && hostile;
                     break;
                 case AscensionCompatData::ResourceGainEvent::FirstSuccessfulDamagingHit:
-                    qualifies = successful && hostile && damage;
+                    qualifies = successful && hostile && damaging;
                     firstOnly = true;
                     break;
                 case AscensionCompatData::ResourceGainEvent::EachSuccessfulDamagingHit:
-                    qualifies = successful && hostile && damage;
+                    qualifies = successful && hostile && damaging;
                     break;
                 case AscensionCompatData::ResourceGainEvent::FirstCriticalDamagingHit:
-                    qualifies = successful && hostile && damage && critical;
+                    qualifies = successful && hostile && damaging && critical;
                     firstOnly = true;
                     break;
                 case AscensionCompatData::ResourceGainEvent::EachCriticalDamagingHit:
-                    qualifies = successful && hostile && damage && critical;
+                    qualifies = successful && hostile && damaging && critical;
                     break;
                 default:
                     break;
