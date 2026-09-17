@@ -45,9 +45,11 @@
 #include "AscensionReaperPainmail.h"
 #include "AscensionReaperScytheRush.h"
 #include "AscensionVenomancerCatalyst.h"
+#include "AscensionSpecialization.h"
 #include "AscensionSpellProgressionData.h"
 #include "AscensionTalentReplacementData.h"
 #include "AscensionTaughtAbilityData.h"
+#include "AscensionCreaturePreset.h"
 #include "Bag.h"
 #include "Battlefield.h"
 #include "BattlefieldMgr.h"
@@ -520,10 +522,32 @@ std::vector<uint32> GetAscensionRacialSpells(Player const* player)
     return spells;
 }
 
+struct FelswornRiftGrant
+{
+    uint32 SpellId;
+    uint8 RequiredLevel;
+};
+
+// The generated class grants only hold the Alliance capital Fel Rifts (Stormwind 26, Ironforge 30, Darnassus 36).
+// These are their Horde counterparts, at their Spell.dbc SpellLevel.
+constexpr std::array<FelswornRiftGrant, 3> FelswornHordeCapitalRifts =
+{{
+    {535598, 26}, // Orgrimmar
+    {535599, 30}, // Thunder Bluff
+    {535600, 36}  // Undercity
+}};
+
+// SkillLineAbility.dbc gives the Alliance capital rifts RaceMask 1101 and the Horde ones RaceMask 690.
+constexpr std::array<uint32, 6> FelswornCapitalRifts = {535595, 535596, 535597, 535598, 535599, 535600};
+
 bool CanGrantAscensionRacialSpell(Player const* player, uint32 spellId)
 {
     bool racial = false;
     auto const bounds = sSpellMgr->GetSkillLineAbilityMapBounds(spellId);
+    if (std::find(FelswornCapitalRifts.begin(), FelswornCapitalRifts.end(), spellId) != FelswornCapitalRifts.end())
+        for (auto itr = bounds.first; itr != bounds.second; ++itr)
+            if (itr->second->RaceMask && !(itr->second->RaceMask & player->getRaceMask()))
+                return false;
     for (auto itr = bounds.first; itr != bounds.second; ++itr)
         if (AscensionRacialAbilities::GetRace(itr->second->SkillLine))
         {
@@ -661,6 +685,14 @@ public:
       LearnRestoredSpell(player, progressionSpell.SpellId);
       ++learned;
     }
+    if (player->getClass() == CLASS_DEMON_HUNTER)
+      for (FelswornRiftGrant const& rift : FelswornHordeCapitalRifts)
+        if (rift.RequiredLevel <= player->GetLevel() && CanGrantAscensionRacialSpell(player, rift.SpellId) &&
+            !player->HasSpell(rift.SpellId) && sSpellMgr->GetSpellInfo(rift.SpellId))
+        {
+          player->learnSpell(rift.SpellId, false);
+          ++learned;
+        }
 
     ReconcileRunemasterFists(player, activeSpec);
     learned += SynchronizeAutomaticTalents(player, GetActiveSpecialization(player));
@@ -863,8 +895,11 @@ public:
       return;
 
     uint32 const guid = player->GetGUID().GetCounter();
-    if (!_proficiencySynchronizations.insert(guid).second)
-      return;
+    {
+      std::lock_guard<std::mutex> lock(_stateLock);
+      if (!_proficiencySynchronizations.insert(guid).second)
+        return;
+    }
 
     auto isAllowed = [player](uint32 proficiencySpellId) {
       bool const isObserved = std::any_of(
@@ -940,7 +975,10 @@ public:
           player->UpdateDefenseBonusesMod();
       }
 
-    _proficiencySynchronizations.erase(guid);
+    {
+      std::lock_guard<std::mutex> lock(_stateLock);
+      _proficiencySynchronizations.erase(guid);
+    }
     if (learned || removed)
     {
       LOG_INFO("module.ascension_compat",
@@ -1218,7 +1256,10 @@ public:
 
     uint32 const specializationId = player->GetPlayerSetting(ASCENSION_ACTIVE_SPEC_SETTING, 0).value;
     if (specializationId)
+    {
+        std::lock_guard<std::mutex> lock(_stateLock);
         _activeSpecializations[player->GetGUID().GetCounter()] = specializationId;
+    }
 
     // The client resends its active specialization right after entering the world.
     // That is a resync, not a player changing specialization, and it must never be
@@ -1307,6 +1348,7 @@ public:
   }
 
   uint32 GetActiveSpecialization(Player const *player) const {
+    std::lock_guard<std::mutex> lock(_stateLock);
     auto itr = _activeSpecializations.find(player->GetGUID().GetCounter());
     return itr == _activeSpecializations.end() ? 0 : itr->second;
   }
@@ -1340,8 +1382,10 @@ public:
                 "Adopted client specialization {} for {} (class {}) over stored {} without refunding: login resync",
                 specializationId, player->GetName(), uint32(player->getClass()), previousSpecialization);
 
-      _activeSpecializations[player->GetGUID().GetCounter()] =
-          specializationId;
+      {
+        std::lock_guard<std::mutex> lock(_stateLock);
+        _activeSpecializations[player->GetGUID().GetCounter()] = specializationId;
+      }
       player->UpdatePlayerSetting(ASCENSION_ACTIVE_SPEC_SETTING, 0, specializationId);
 
       uint32 granted = SynchronizeProgression(player);
@@ -1352,6 +1396,10 @@ public:
                granted);
       return true;
     }
+
+    // Like Player::ActivateSpec, dismiss the pet summoned under the old specialization.
+    if (Pet* pet = player->GetPet())
+      player->RemovePet(pet, PET_SAVE_NOT_IN_SLOT);
 
     std::unordered_set<uint32> visitedSpellIds;
     uint32 removed = 0;
@@ -1370,8 +1418,10 @@ public:
       }
     }
 
-    _activeSpecializations[player->GetGUID().GetCounter()] =
-        specializationId;
+    {
+      std::lock_guard<std::mutex> lock(_stateLock);
+      _activeSpecializations[player->GetGUID().GetCounter()] = specializationId;
+    }
     player->UpdatePlayerSetting(ASCENSION_ACTIVE_SPEC_SETTING, 0, specializationId);
 
     uint32 granted = SynchronizeProgression(player);
@@ -1394,18 +1444,22 @@ public:
         if (!IsAscensionCustomClass(player))
             return;
 
-        uint32& remaining = _tuningUpdates[player->GetGUID()];
-        if (diff < remaining)
         {
-            remaining -= diff;
-            return;
-        }
+            std::lock_guard<std::mutex> lock(_stateLock);
+            uint32& remaining = _tuningUpdates[player->GetGUID()];
+            if (diff < remaining)
+            {
+                remaining -= diff;
+                return;
+            }
 
-        remaining = 1000;
+            remaining = 1000;
+        }
         AscensionClassTuning::Synchronize(player, GetActiveSpecialization(player), false);
     }
 
   void OnPlayerLogout(Player *player) {
+    std::lock_guard<std::mutex> lock(_stateLock);
     _tuningUpdates.erase(player->GetGUID());
     _activeSpecializations.erase(player->GetGUID().GetCounter());
     _proficiencySynchronizations.erase(player->GetGUID().GetCounter());
@@ -1536,6 +1590,10 @@ private:
         return learned;
     }
 
+  // One service for every player, and player updates run on several map threads at once: every
+  // access to the three containers below goes through this lock. Without it a concurrent insert
+  // corrupts the hash table and a later lookup loops forever, which stops the whole world.
+  mutable std::mutex _stateLock;
   std::unordered_map<ObjectGuid, uint32> _tuningUpdates;
   std::unordered_map<uint32, uint32> _activeSpecializations;
   std::unordered_map<uint32, int64> _loginResyncUntil;
@@ -4258,9 +4316,53 @@ public:
                 return false;
         }
 
-        if (!session || !session->GetPlayer() || packet.GetOpcode() != CMSG_CREATURE_QUERY ||
-            packet.size() < sizeof(uint32) ||
+        if (!session || !session->GetPlayer() ||
             !ascensionCompatConfig.GetConfigValue<bool>(AscensionCompatConfig::ENABLED))
+            return true;
+
+        if (packet.GetOpcode() == CMSG_GET_MIRRORIMAGE_DATA && packet.size() >= sizeof(uint64))
+        {
+            ObjectGuid guid = packet.read<ObjectGuid>(0);
+            CreatureDisplayPreset const* preset = nullptr;
+
+            if (guid.IsCreatureOrVehicle())
+            {
+                uint32 displayId = 0;
+                if (Creature const* creature = session->GetPlayer()->GetMap()->GetCreature(guid))
+                    displayId = creature->GetDisplayId();
+
+                preset = sAscensionPresets->GetPreset(guid.GetEntry(), displayId);
+            }
+
+            if (!preset)
+            {
+                preset = sAscensionPresets->GetActivePresetOverride(guid);
+            }
+
+            if (preset)
+            {
+                WorldPacket response(SMSG_MIRRORIMAGE_DATA, 68);
+                response << guid;
+                response << uint32(preset->display_id);
+                response << uint8(preset->race);
+                response << uint8(preset->gender);
+                response << uint8(preset->class_id);
+                response << uint8(preset->skin);
+                response << uint8(preset->face);
+                response << uint8(preset->hair);
+                response << uint8(preset->haircolor);
+                response << uint8(preset->facialhair);
+                response << uint32(preset->guild_id);
+                for (uint32 item : preset->items)
+                    response << uint32(item);
+
+                session->SendPacket(&response);
+                return false;
+            }
+            return true;
+        }
+
+        if (packet.GetOpcode() != CMSG_CREATURE_QUERY || packet.size() < sizeof(uint32))
             return true;
 
         uint32 const entry = packet.read<uint32>(0);
@@ -4407,6 +4509,11 @@ public:
 
     static ChatCommandTable commandTable = {
         {"localfreshcheck", HandleAscensionFreshCharacterCheck, SEC_ADMINISTRATOR, Console::Yes},
+        {"localreloadpresets", HandleLocalReloadPresetsCommand, SEC_ADMINISTRATOR, Console::Yes},
+        {"morphpreset", HandleMorphPresetCommand, SEC_ADMINISTRATOR, Console::No},
+        {"demorphpreset", HandleDemorphPresetCommand, SEC_ADMINISTRATOR, Console::No},
+        {"localreloadoutfits", HandleLocalReloadPresetsCommand, SEC_ADMINISTRATOR, Console::Yes},
+        {"morphoutfit", HandleMorphPresetCommand, SEC_ADMINISTRATOR, Console::No},
         {"localappearance", HandleLocalAppearanceCommand, SEC_PLAYER,
          Console::No},
         {"localvanity", HandleLocalVanityCommand, SEC_PLAYER, Console::No},
@@ -4780,20 +4887,114 @@ public:
     handler->SendSysMessage("Spell-charge state resent to the client.");
     return true;
   }
+
+  static bool HandleLocalReloadPresetsCommand(ChatHandler* handler) {
+    sAscensionPresets->LoadFromDB();
+    handler->PSendSysMessage("Reloaded %u creature display presets into cache.", uint32(sAscensionPresets->GetPresetCount()));
+    return true;
+  }
+
+  static bool HandleMorphPresetCommand(ChatHandler* handler, uint32 entry, Optional<uint32> displayIdOpt) {
+    Unit* target = handler->getSelectedUnit();
+    if (!target)
+      target = handler->GetPlayer();
+    if (!target)
+      return false;
+
+    uint32 displayId = displayIdOpt ? *displayIdOpt : 0;
+    CreatureDisplayPreset const* preset = nullptr;
+
+    if (displayId != 0) {
+      preset = sAscensionPresets->GetPreset(entry, displayId);
+    } else if (Player* targetPlayer = target->ToPlayer()) {
+      preset = sAscensionPresets->GetPresetByGender(entry, targetPlayer->getGender());
+    } else {
+      preset = sAscensionPresets->GetPreset(entry);
+    }
+
+    if (!preset) {
+      handler->PSendSysMessage("No creature display preset found for entry %u.", entry);
+      return false;
+    }
+
+    sAscensionPresets->SetActivePresetOverride(target->GetGUID(), entry, preset->display_id);
+    target->SetDisplayId(preset->display_id);
+    target->SetUnitFlag2(UNIT_FLAG2_MIRROR_IMAGE);
+
+    WorldPacket response(SMSG_MIRRORIMAGE_DATA, 68);
+    response << target->GetGUID();
+    response << uint32(preset->display_id);
+    response << uint8(preset->race);
+    response << uint8(preset->gender);
+    response << uint8(preset->class_id);
+    response << uint8(preset->skin);
+    response << uint8(preset->face);
+    response << uint8(preset->hair);
+    response << uint8(preset->haircolor);
+    response << uint8(preset->facialhair);
+    response << uint32(preset->guild_id);
+    for (uint32 item : preset->items)
+      response << uint32(item);
+
+    target->SendMessageToSet(&response, true);
+    handler->PSendSysMessage("Morphed into creature display preset for entry %u (display %u, %s).",
+        entry, preset->display_id, preset->gender == 1 ? "Female" : "Male");
+    return true;
+  }
+
+  static bool HandleDemorphPresetCommand(ChatHandler* handler) {
+    Unit* target = handler->getSelectedUnit();
+    if (!target)
+      target = handler->GetPlayer();
+    if (!target)
+      return false;
+
+    sAscensionPresets->ClearActivePresetOverride(target->GetGUID());
+    if (Player* player = target->ToPlayer()) {
+      player->RemoveUnitFlag2(UNIT_FLAG2_MIRROR_IMAGE);
+      player->InitDisplayIds();
+    } else if (Creature* creature = target->ToCreature()) {
+      if (CreatureTemplate const* cinfo = creature->GetCreatureTemplate()) {
+        if (CreatureModel const* model = ObjectMgr::ChooseDisplayId(cinfo, creature->GetCreatureData())) {
+          creature->SetDisplayId(model->CreatureDisplayID, model->DisplayScale);
+          creature->SetNativeDisplayId(model->CreatureDisplayID);
+        }
+      }
+      if (sAscensionPresets->HasPreset(creature->GetEntry())) {
+        creature->SetUnitFlag2(UNIT_FLAG2_MIRROR_IMAGE);
+      } else {
+        creature->RemoveUnitFlag2(UNIT_FLAG2_MIRROR_IMAGE);
+      }
+    } else {
+      target->RemoveUnitFlag2(UNIT_FLAG2_MIRROR_IMAGE);
+      target->DeMorph();
+    }
+
+    handler->PSendSysMessage("Demorphed creature display preset.");
+    return true;
+  }
 };
 
 class AscensionCompatPlayerScript : public PlayerScript {
+    // One script instance serves every player, and players on different maps update on
+    // different map threads: every access to the pending list goes through this lock.
+    std::mutex _pendingEquipmentLock;
     std::unordered_map<ObjectGuid, std::vector<ObjectGuid>> _pendingEquipment;
 
     void EquipNewItems(Player* player)
     {
-        auto itr = _pendingEquipment.find(player->GetGUID());
-        if (itr == _pendingEquipment.end())
-            return;
+        std::vector<ObjectGuid> items;
+        {
+            std::lock_guard<std::mutex> lock(_pendingEquipmentLock);
+            auto itr = _pendingEquipment.find(player->GetGUID());
+            if (itr == _pendingEquipment.end())
+                return;
 
-        // Finish the acquisition before moving items; its caller still uses the original bag positions.
-        auto items = std::move(itr->second);
-        _pendingEquipment.erase(itr);
+            // Finish the acquisition before moving items; its caller still uses the original bag positions.
+            items = std::move(itr->second);
+            _pendingEquipment.erase(itr);
+        }
+
         for (ObjectGuid guid : items)
         {
             Item* item = player->GetItemByGuid(guid);
@@ -4950,17 +5151,32 @@ static void RestoreActionButtonsForGrantedSpells(Player* player)
       // SynchronizeTaughtAbilities grants Dual Wield (674) from OnPlayerLogin, which runs only
       // after inventory is already loaded, so CanDualWield() is still false here even when the
       // player legitimately dual-wielded last session; the saved offhand item would otherwise
-      // fail EQUIP_ERR_CANT_DUAL_WIELD and get mailed back on every login. Only paper over that
-      // one not-yet-synced reason: SynchronizeTaughtAbilities's own AutoUnequipOffhandIfNeed()
-      // unequips it again moments later in the same login if the player is no longer eligible.
+      // be rejected and get mailed back on every login. Only paper over that one not-yet-synced
+      // flag: SynchronizeTaughtAbilities's own AutoUnequipOffhandIfNeed() unequips it again
+      // moments later in the same login if the player is no longer eligible.
       uint8 result = player->CanEquipItem(slot, dest, item, false, false);
-      if (result != EQUIP_ERR_CANT_DUAL_WIELD)
+      if (result == EQUIP_ERR_OK || player->CanDualWield())
       {
           err = result;
           return false;
       }
 
-      dest = (INVENTORY_SLOT_BAG_0 << 8) | slot;
+      // A one-hand weapon is refused before the dual wield check (EQUIP_ERR_ITEM_CANT_BE_EQUIPPED:
+      // FindEquipSlot offers the offhand only with dual wield), an offhand weapon at it
+      // (EQUIP_ERR_CANT_DUAL_WIELD). Re-check with the flag the login sync is about to restore.
+      player->SetCanDualWield(true);
+      uint16 dualWieldDest = 0;
+      uint8 const dualWieldResult = player->CanEquipItem(slot, dualWieldDest, item, false, false);
+      if (dualWieldResult != EQUIP_ERR_OK)
+      {
+          player->SetCanDualWield(false);
+          err = result;
+          return false;
+      }
+
+      // Keep the flag: the zone update that adds the player to the map also calls
+      // AutoUnequipOffhandIfNeed(), before OnPlayerLogin runs the taught ability sync.
+      dest = dualWieldDest;
       err = EQUIP_ERR_OK;
       return false;
   }
@@ -5067,7 +5283,10 @@ static void RestoreActionButtonsForGrantedSpells(Player* player)
     }
 
   void OnPlayerLogout(Player *player) override {
-    _pendingEquipment.erase(player->GetGUID());
+    {
+      std::lock_guard<std::mutex> lock(_pendingEquipmentLock);
+      _pendingEquipment.erase(player->GetGUID());
+    }
     AscensionClassService::Instance().OnPlayerLogout(player);
     AscensionResourceService::Instance().OnPlayerLogout(player);
     AscensionCollectionService::Instance().OnPlayerLogout(player);
@@ -5080,6 +5299,10 @@ static void RestoreActionButtonsForGrantedSpells(Player* player)
       AscensionResourceService::Instance().OnPlayerUpdate(player, diff);
       AscensionCollectionService::Instance().OnPlayerUpdate(player, diff);
       EquipNewItems(player);
+      if (sAscensionPresets->GetActivePresetOverride(player->GetGUID())) {
+        if (!player->HasUnitFlag2(UNIT_FLAG2_MIRROR_IMAGE))
+          player->SetUnitFlag2(UNIT_FLAG2_MIRROR_IMAGE);
+      }
     }
   }
 
@@ -5099,7 +5322,10 @@ static void RestoreActionButtonsForGrantedSpells(Player* player)
     if (item && player->IsInWorld() && player->getClass() >= CLASS_BARBARIAN &&
         player->getClass() <= CLASS_SPIRIT_MAGE &&
         ascensionCompatConfig.GetConfigValue<bool>(AscensionCompatConfig::ENABLED))
+    {
+        std::lock_guard<std::mutex> lock(_pendingEquipmentLock);
         _pendingEquipment[player->GetGUID()].push_back(item->GetGUID());
+    }
   }
 
   void OnPlayerCreateItem(Player *player, Item *item,
@@ -5502,7 +5728,8 @@ class AscensionCompatWorldScript : public WorldScript {
 public:
   AscensionCompatWorldScript()
       : WorldScript("AscensionCompatWorldScript",
-                    {WORLDHOOK_ON_BEFORE_CONFIG_LOAD, WORLDHOOK_ON_STARTUP}) {}
+                    {WORLDHOOK_ON_BEFORE_CONFIG_LOAD, WORLDHOOK_ON_STARTUP,
+                     WORLDHOOK_ON_LOAD_CUSTOM_DATABASE_TABLE}) {}
 
   void OnBeforeConfigLoad(bool reload) override {
     ascensionCompatConfig.Initialize(reload);
@@ -5511,6 +5738,14 @@ public:
         AscensionCompatConfig::LEVEL_SCALING), std::memory_order_relaxed);
     LocalLevelScaling::QuestEnabled.store(enabled && ascensionCompatConfig.GetConfigValue<bool>(
         AscensionCompatConfig::QUEST_LEVEL_SCALING), std::memory_order_relaxed);
+  }
+
+  void OnLoadCustomDatabaseTable() override {
+    if (!ascensionCompatConfig.GetConfigValue<bool>(
+            AscensionCompatConfig::ENABLED))
+      return;
+
+    sAscensionPresets->LoadFromDB();
   }
 
   void OnStartup() override {
@@ -6203,6 +6438,154 @@ bool IsAscensionPrimalistWeaponsEligible(Player const* player, bool allowUnconfi
             (allowUnconfirmed && !AscensionClassService::Instance().GetActiveSpecialization(player)));
 }
 
+uint32 GetAscensionActiveSpecialization(Player const* player)
+{
+    if (!player || !IsAscensionCustomClass(player))
+        return 0;
+
+    if (uint32 const active = AscensionClassService::Instance().GetActiveSpecialization(player))
+        return active;
+
+    // GetPlayerSetting is not const but only reads the cached settings.
+    return const_cast<Player*>(player)->GetPlayerSetting(ASCENSION_ACTIVE_SPEC_SETTING, 0).value;
+}
+
+bool SwitchAscensionSpecialization(Player* player, uint32 specializationId)
+{
+    return player && ascensionCompatConfig.GetConfigValue<bool>(AscensionCompatConfig::ENABLED) &&
+        AscensionClassService::Instance().SwitchSpecialization(player, specializationId);
+}
+
+static AscensionCompatData::CoATalentEntry const* FindAscensionTalentEntry(uint32 entryId)
+{
+    auto const& entries = AscensionCompatData::CoATalentEntries;
+    auto itr = std::lower_bound(entries.begin(), entries.end(), entryId,
+        [](AscensionCompatData::CoATalentEntry const& entry, uint32 id) { return entry.EntryId < id; });
+    return itr != entries.end() && itr->EntryId == entryId ? &*itr : nullptr;
+}
+
+uint32 GetAscensionTalentRank(Player const* player, uint32 entryId)
+{
+    AscensionCompatData::CoATalentEntry const* entry = FindAscensionTalentEntry(entryId);
+    if (!player || !entry)
+        return 0;
+
+    for (uint32 rank = entry->SpellCount; rank > 0; --rank)
+        if (entry->SpellIds[rank - 1] && player->HasSpell(entry->SpellIds[rank - 1]))
+            return rank;
+    return 0;
+}
+
+bool SetAscensionTalentRank(Player* player, uint32 entryId, uint32 rank)
+{
+    AscensionCompatData::CoATalentEntry const* entry = FindAscensionTalentEntry(entryId);
+    if (!player || !entry || !IsAscensionCustomClass(player) || entry->ClassId != player->getClass() ||
+        rank > entry->SpellCount)
+        return false;
+
+    // Automatic entries belong to SynchronizeProgression, never to a purchase.
+    uint32 const freeChoiceGroup = AscensionClassService::GetSelectableFreeGroup(entryId);
+    if (entry->AECost == 0 && entry->TECost == 0 && !freeChoiceGroup)
+        return false;
+
+    if (rank > 0 && entry->SpecId != 0 && entry->SpecId != GetAscensionActiveSpecialization(player))
+        return false;
+
+    uint32 const selectedSpellId = rank > 0 ? entry->SpellIds[rank - 1] : 0;
+    if (rank > 0 && (!selectedSpellId || !sSpellMgr->GetSpellInfo(selectedSpellId)))
+        return false;
+
+    // Same resolution as ".local talent": a selection clears the other options of its free group,
+    // then every rank of the entry, before learning the chosen rank.
+    if (rank > 0 && freeChoiceGroup)
+        for (auto const& other : AscensionCompatData::CoATalentEntries)
+            if (other.ClassId == player->getClass() && other.SpecId == entry->SpecId && other.EntryId != entryId &&
+                AscensionClassService::GetSelectableFreeGroup(other.EntryId) == freeChoiceGroup)
+                for (uint32 spellId : other.SpellIds)
+                    if (spellId && player->HasSpell(spellId))
+                        player->removeSpell(spellId, SPEC_MASK_ALL, false);
+
+    for (uint32 spellId : entry->SpellIds)
+        if (spellId && player->HasSpell(spellId))
+            player->removeSpell(spellId, SPEC_MASK_ALL, false);
+
+    if (rank > 0)
+        player->learnSpell(selectedSpellId, false);
+
+    AscensionClassService::Instance().SynchronizeProgression(player);
+    return true;
+}
+
+bool IsAscensionCustomClassId(uint8 classId)
+{
+    return classId >= CLASS_BARBARIAN && classId <= CLASS_SPIRIT_MAGE;
+}
+
+std::vector<AscensionClassAbility> GetAscensionClassAbilities(uint8 classId)
+{
+    std::vector<AscensionClassAbility> abilities;
+    if (!IsAscensionCustomClassId(classId))
+        return abilities;
+
+    for (auto const& grant : AscensionCompatData::ClassSpells)
+        if (grant.ClassId == classId)
+            abilities.push_back({ grant.SpellId, grant.SpellId, 0, grant.RequiredLevel });
+
+    // Each rank of a Character Advancement entry; remember which specialization grants it for the ranks below.
+    std::unordered_map<uint32, uint16> specializationOf;
+    for (auto const& entry : AscensionCompatData::CoATalentEntries)
+    {
+        if (entry.ClassId != classId || !entry.SpellIds[0])
+            continue;
+
+        for (uint32 spellId : entry.SpellIds)
+        {
+            if (!spellId)
+                continue;
+
+            abilities.push_back({ spellId, entry.SpellIds[0], entry.SpecId, entry.RequiredLevel });
+            specializationOf.emplace(spellId, entry.SpecId);
+        }
+    }
+
+    // Higher ranks the progression teaches with level.
+    for (auto const& rank : AscensionProgression::Ranks)
+    {
+        if (rank.ClassId != classId)
+            continue;
+
+        auto const specialization = specializationOf.find(rank.FirstSpellId);
+        uint16 const specId = specialization != specializationOf.end() ? specialization->second : 0;
+        abilities.push_back({ rank.SpellId, rank.FirstSpellId, specId, rank.RequiredLevel });
+    }
+
+    return abilities;
+}
+
+class AscensionCompatAllCreatureScript : public AllCreatureScript {
+public:
+  AscensionCompatAllCreatureScript()
+      : AllCreatureScript("AscensionCompatAllCreatureScript") {}
+
+  void OnCreatureAddWorld(Creature* creature) override {
+    if (!creature || !ascensionCompatConfig.GetConfigValue<bool>(AscensionCompatConfig::ENABLED))
+      return;
+    if (sAscensionPresets->HasPreset(creature->GetEntry())) {
+      creature->SetUnitFlag2(UNIT_FLAG2_MIRROR_IMAGE);
+    }
+  }
+
+  void OnAllCreatureUpdate(Creature* creature, uint32 /*diff*/) override {
+    if (!creature || !ascensionCompatConfig.GetConfigValue<bool>(AscensionCompatConfig::ENABLED))
+      return;
+    if (sAscensionPresets->HasPreset(creature->GetEntry())) {
+      if (!creature->HasUnitFlag2(UNIT_FLAG2_MIRROR_IMAGE)) {
+        creature->SetUnitFlag2(UNIT_FLAG2_MIRROR_IMAGE);
+      }
+    }
+  }
+};
+
 void AddAscensionCompatScripts() {
   new npc_ascension_training_book();
   RegisterSpellScript(spell_ascension_personal_bank);
@@ -6222,4 +6605,5 @@ void AddAscensionCompatScripts() {
   new AscensionCompatChangelogScript();
   new AscensionCompatLevelScalingScript();
   new AscensionCompatWorldScript();
+  new AscensionCompatAllCreatureScript();
 }

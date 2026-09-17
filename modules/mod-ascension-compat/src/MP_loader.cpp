@@ -148,6 +148,7 @@ void AddSC_AscensionAdventurerCache();
 void AddSC_AscensionBankVoucher();
 void AddSC_AscensionLevelScalingToggle();
 void AddSC_AscensionPersonalBank();
+void AddSC_AscensionWisdomball();
 void AddSC_AscensionBloodmageTalents();
 void AddSC_AscensionBloodmageVitality();
 void AddSC_AscensionReaperReflexes();
@@ -301,6 +302,7 @@ void Addmod_ascension_compatScripts()
     AddSC_AscensionBankVoucher();
     AddSC_AscensionLevelScalingToggle();
     AddSC_AscensionPersonalBank();
+    AddSC_AscensionWisdomball();
     AddSC_AscensionBloodmageTalents();
     AddSC_AscensionBloodmageVitality();
     AddSC_AscensionReaperReflexes();
