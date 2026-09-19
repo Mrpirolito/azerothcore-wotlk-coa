@@ -66,6 +66,7 @@
 #include "DatabaseEnv.h"
 #include "DBCStores.h"
 #include "GossipDef.h"
+#include "GameTime.h"
 #include "GlobalScript.h"
 #include "GridTerrainData.h"
 #include "GuildPackets.h"
@@ -528,6 +529,23 @@ bool CanGrantAscensionRacialSpell(Player const* player, uint32 spellId)
     return !racial;
 }
 
+// Player::_addSpell files a grant made while the session is still loading as PLAYERSPELL_UNCHANGED,
+// which Player::_SaveSpells reads as "already stored in character_spell" and never writes out. The
+// ability is therefore missing from character_spell at the next login, and Player::_LoadActions runs
+// long before any script hook: it drops every action button pointing at a spell the character does
+// not yet know, and deletes the row. That is why an ability placed on the bar vanished on every
+// relog while the ability itself came back a moment later - Shudder Scythe (Transform) 572382 was
+// granted fresh each login and never stored, so the bar had nothing to point at when it loaded.
+//
+// Mark each restored grant so it reaches character_spell and is known before the bar loads.
+// Player::MarkSpellForSave only promotes PLAYERSPELL_UNCHANGED, so a spell that was already stored
+// is untouched.
+static void LearnRestoredSpell(Player* player, uint32 spellId)
+{
+    player->learnSpell(spellId, false);
+    player->MarkSpellForSave(spellId);
+}
+
 class AscensionClassService {
 public:
   static AscensionClassService &Instance() {
@@ -604,7 +622,7 @@ public:
     for (uint32 spellId : racialSpells)
         if (automaticProgression && !player->HasSpell(spellId) && sSpellMgr->GetSpellInfo(spellId))
         {
-            player->learnSpell(spellId, false);
+            LearnRestoredSpell(player, spellId);
             ++learned;
         }
     for (auto const& entry : AscensionLiveBaseline::Spells)
@@ -613,7 +631,7 @@ public:
           CanGrantAscensionRacialSpell(player, entry.SpellId) &&
           !player->HasSpell(entry.SpellId) && sSpellMgr->GetSpellInfo(entry.SpellId))
       {
-        player->learnSpell(entry.SpellId, false);
+        LearnRestoredSpell(player, entry.SpellId);
         ++learned;
       }
     for (AscensionCompatData::ClassSpell const &progressionSpell :
@@ -633,7 +651,7 @@ public:
         continue;
       }
 
-      player->learnSpell(progressionSpell.SpellId, false);
+      LearnRestoredSpell(player, progressionSpell.SpellId);
       ++learned;
     }
     if (player->getClass() == CLASS_DEMON_HUNTER)
@@ -657,7 +675,7 @@ public:
 
         if (sSpellMgr->GetSpellInfo(rank.SpellId))
         {
-            player->learnSpell(rank.SpellId, false);
+            LearnRestoredSpell(player, rank.SpellId);
             ++learned;
         }
     }
@@ -870,7 +888,7 @@ public:
         {
           if (sSpellMgr->GetSpellInfo(definition.SpellId))
           {
-            player->learnSpell(definition.SpellId, false);
+            LearnRestoredSpell(player, definition.SpellId);
             ++learned;
           }
           else
@@ -1860,6 +1878,7 @@ public:
       return false;
 
     uint32 const previousSpecialization = GetActiveSpecialization(player);
+
     if (!previousSpecialization || previousSpecialization == specializationId)
     {
       {
@@ -2064,7 +2083,7 @@ private:
                 if (!spellId || player->HasSpell(spellId) || !sSpellMgr->GetSpellInfo(spellId))
                     continue;
 
-                player->learnSpell(spellId, false);
+                LearnRestoredSpell(player, spellId);
                 ++learned;
                 changed = true;
             }
@@ -2889,6 +2908,7 @@ private:
             return;
 
         uint32 spellId = spellInfo->Id;
+
         if (std::find(REAPER_ALL_SOUL_CONSUMERS.begin(),
                 REAPER_ALL_SOUL_CONSUMERS.end(), spellId) !=
             REAPER_ALL_SOUL_CONSUMERS.end())
@@ -3300,7 +3320,7 @@ public:
         for (uint32 spellId : {SPELL_RIDING_APPRENTICE, SPELL_RIDING_JOURNEYMAN,
             SPELL_RIDING_EXPERT, SPELL_RIDING_ARTISAN, SPELL_COLD_WEATHER_FLYING})
             if (sSpellMgr->GetSpellInfo(spellId) && !player->HasSpell(spellId))
-                player->learnSpell(spellId, false);
+                LearnRestoredSpell(player, spellId);
 
         player->SetSkill(SKILL_RIDING, 4, 300, 300);
     }
@@ -3318,7 +3338,7 @@ public:
         std::size_t learned = 0;
         for (uint32 spellId : spells)
         {
-            player->learnSpell(spellId, false);
+            LearnRestoredSpell(player, spellId);
             if (!player->HasSpell(spellId))
                 continue;
 
@@ -3393,7 +3413,7 @@ public:
         std::size_t learned = 0;
         for (uint32 spellId : GetMissingBankSpells(player, state))
         {
-            player->learnSpell(spellId, false);
+            LearnRestoredSpell(player, spellId);
             if (player->HasSpell(spellId))
                 ++learned;
         }
@@ -3475,7 +3495,7 @@ public:
         {
             uint32 const spellId = state->PendingCompanionSpells[state->NextCompanionSpell++];
             if (!player->HasSpell(spellId))
-                player->learnSpell(spellId, false);
+                LearnRestoredSpell(player, spellId);
         }
 
         if (state->NextCompanionSpell == state->PendingCompanionSpells.size())
@@ -4550,6 +4570,9 @@ class spell_ascension_personal_bank : public SpellScript
     }
 };
 
+// Defined next to AscensionGuideTrainer, further down in this file.
+bool HandleAscensionGuideTrainerBuy(Player* player, ObjectGuid trainerGuid, uint32 spellId);
+
 class AscensionCompatServerScript : public ServerScript {
 public:
   AscensionCompatServerScript()
@@ -4563,6 +4586,22 @@ public:
         if (session && session->GetPlayer())
         {
             Player* player = session->GetPlayer();
+
+            // The guide companion serves whichever trainer its gossip last picked, and the native
+            // handler resolves trainers by creature entry, so it would find none. This hook runs
+            // from WorldSession::Update, on the map thread, which is the only place teaching a
+            // spell is safe.
+            if (packet.GetOpcode() == CMSG_TRAINER_BUY_SPELL &&
+                packet.size() >= sizeof(uint64) + sizeof(int32) &&
+                ascensionCompatConfig.GetConfigValue<bool>(AscensionCompatConfig::ENABLED))
+            {
+                uint64 rawGuid;
+                int32 spellId;
+                std::memcpy(&rawGuid, packet.contents(), sizeof(rawGuid));
+                std::memcpy(&spellId, packet.contents() + sizeof(rawGuid), sizeof(spellId));
+                if (HandleAscensionGuideTrainerBuy(player, ObjectGuid(rawGuid), uint32(spellId)))
+                    return false;
+            }
 
             if (packet.GetOpcode() == CMSG_GUILD_BANKER_ACTIVATE)
             {
@@ -6124,6 +6163,267 @@ class spell_ascension_legacy_quest_reward : public SpellScript
     }
 };
 
+// Runeblade reforging, offered by the Icecrown Citadel Highlord Darion Mograine
+// once the Shadowmourne chain is finished.
+//
+// The two entries are the same weapon: item 33350 carries an identical copy of
+// 49623's stats and differs only in the model its client Item.dbc row names. So
+// the exchange does not create or destroy anything -- it rewrites the entry of
+// the instance the player already owns. Gems, enchantments, durability, the
+// soulbound flag and the item GUID all live on that instance and survive, which
+// no destroy/grant pair could promise. The exchange is free and repeatable in
+// either direction, because nothing is consumed by it.
+constexpr uint32 kDarionIcecrownEntry = 37120;      // ICC (map 631) Shadowmourne questgiver
+constexpr uint32 kShadowmourneFinalQuest = 24549;   // "Shadowmourne..."
+constexpr uint32 kItemShadowmourne = 49623;
+constexpr uint32 kItemFrostmourne = 33350;
+constexpr uint32 kSenderRuneblade = 0xA5C1;         // neighbour of kSenderScroll
+constexpr uint32 kActionReforge = 1;
+constexpr uint32 kRunebladeMenuId = 0xA5C1;         // never a real gossip_menu row
+
+constexpr uint32 kSenderGuideTrainer = 0xA5C2;
+constexpr uint32 kGuideMenuId = 0xA5C2;
+constexpr uint32 kGuideGossipTextId = 1;
+constexpr uint32 kClassTrainerBase = 9100000;   // + class id
+// The repack already ships a free, fully gated tradeskill trainer for the Book
+// of Artisans, covering every profession with its real skill requirements.
+constexpr uint32 kProfessionTrainerId = 200001;
+// The update's own npc_ascension_training_book offers this, but a CreatureScript
+// only runs when no AllCreatureScript claimed the gossip first, and this one does.
+// Carry the option here so the guide keeps doing what that fix intended.
+constexpr uint32 kActionRestoreAbilities = 0xA5C3;
+
+// The guide books summon a companion that is meant to train, but a creature can
+// only carry one default trainer, and the guide has to offer a class trainer plus
+// every profession. So the menu picks a trainer id, the pick is remembered for
+// that player, and both the spell list and the purchase are served from it.
+class AscensionGuideTrainer : public AllCreatureScript
+{
+public:
+    AscensionGuideTrainer() : AllCreatureScript("AscensionGuideTrainer") { _instance = this; }
+
+    // AddAscensionCompatScripts creates exactly one, and ScriptMgr owns it for
+    // the life of the process; the packet hook reaches it through here.
+    static AscensionGuideTrainer* Instance() { return _instance; }
+
+    bool CanCreatureGossipHello(Player* player, Creature* creature) override
+    {
+        if (!IsGuideCompanion(player, creature))
+            return false;
+
+        ClearGossipMenuFor(player);
+        AddGossipItemFor(player, GOSSIP_ICON_TRAINER,
+            "Train my class abilities.", kSenderGuideTrainer, ClassTrainerAction(player));
+
+        if (sObjectMgr->GetTrainerById(kProfessionTrainerId))
+            AddGossipItemFor(player, GOSSIP_ICON_TRAINER, "Train professions.",
+                kSenderGuideTrainer, kProfessionTrainerId);
+
+        if (IsAscensionCustomClass(player))
+            AddGossipItemFor(player, GOSSIP_ICON_TRAINER, "Restore my available class abilities.",
+                kSenderGuideTrainer, kActionRestoreAbilities);
+
+        player->PlayerTalkClass->GetGossipMenu().SetMenuId(kGuideMenuId);
+        SendGossipMenuFor(player, kGuideGossipTextId, creature);
+        return true;
+    }
+
+    bool CanCreatureGossipSelect(Player* player, Creature* creature, uint32 sender, uint32 action) override
+    {
+        if (sender != kSenderGuideTrainer || !IsGuideCompanion(player, creature))
+            return false;
+
+        if (action == kActionRestoreAbilities)
+        {
+            CloseGossipMenuFor(player);
+            if (!AscensionClassService::Instance().SynchronizeProgression(player))
+                ChatHandler(player->GetSession()).SendSysMessage(
+                    "Your available class abilities are already up to date.");
+            return true;
+        }
+
+        Trainer::Trainer* trainer = sObjectMgr->GetTrainerById(action);
+        if (!trainer)
+        {
+            CloseGossipMenuFor(player);
+            return true;
+        }
+
+        _selectedTrainers[player->GetGUID().GetCounter()] = action;
+        ClearGossipMenuFor(player);
+        trainer->SendSpells(creature, player, player->GetSession()->GetSessionDbLocaleIndex());
+        return true;
+    }
+
+    // The buy opcode resolves the trainer from the creature entry, which would
+    // find nothing here. Serve it from the remembered pick instead.
+    bool HandleTrainerBuy(Player* player, ObjectGuid trainerGuid, uint32 spellId)
+    {
+        auto itr = _selectedTrainers.find(player->GetGUID().GetCounter());
+        if (itr == _selectedTrainers.end())
+            return false;
+
+        Creature* creature = player->GetMap()->GetCreature(trainerGuid);
+        if (!IsGuideCompanion(player, creature))
+            return false;
+
+        Trainer::Trainer* trainer = sObjectMgr->GetTrainerById(itr->second);
+        if (!trainer)
+            return false;
+
+        trainer->TeachSpell(creature, player, spellId);
+        return true;
+    }
+
+private:
+    static inline AscensionGuideTrainer* _instance = nullptr;
+
+    static uint32 ClassTrainerAction(Player const* player)
+    {
+        return kClassTrainerBase + player->getClass();
+    }
+
+    // Every Book of Ascension variant summons its own guide, and more can be
+    // added, so recognise them by what they are rather than by a list: the
+    // player's own summoned companion, carrying the trainer flag its template
+    // was given. Nothing else in the world is both at once.
+    static bool IsGuideCompanion(Player const* player, Creature const* creature)
+    {
+        return player && creature &&
+            creature->GetGUID() == player->GetCritterGUID() &&
+            creature->HasNpcFlag(UNIT_NPC_FLAG_TRAINER);
+    }
+
+    std::unordered_map<uint32, uint32> _selectedTrainers;
+};
+
+
+bool HandleAscensionGuideTrainerBuy(Player* player, ObjectGuid trainerGuid, uint32 spellId)
+{
+    AscensionGuideTrainer* guide = AscensionGuideTrainer::Instance();
+    return guide && guide->HandleTrainerBuy(player, trainerGuid, spellId);
+}
+
+class AscensionRunebladeReforge : public AllCreatureScript
+{
+public:
+    AscensionRunebladeReforge() : AllCreatureScript("AscensionRunebladeReforge") { }
+
+    bool CanCreatureGossipHello(Player* player, Creature* creature) override
+    {
+        uint32 currentEntry = 0;
+        Item* item = nullptr;
+        if (!ascensionCompatConfig.GetConfigValue<bool>(AscensionCompatConfig::ENABLED) ||
+            !CanReforgeRuneblade(player, creature, currentEntry, item))
+            return false; // Not our case: let Darion's normal menu run untouched.
+
+        // Rebuild his own menu first so his quests and gossip stay listed, then
+        // append the reforge line. Taking the hook over is the only way to add
+        // an option that carries a sender we can recognise on select.
+        uint32 const darionMenuId = creature->GetGossipMenuId();
+        uint32 const textId = player->GetGossipTextId(darionMenuId, creature);
+        player->PrepareGossipMenu(creature, darionMenuId, true);
+        AddGossipItemFor(player, GOSSIP_ICON_CHAT,
+            currentEntry == kItemShadowmourne ? "<Runeblade> Reshape my weapon: Shadowmourne -> Frostmourne."
+                                              : "<Runeblade> Reshape my weapon: Frostmourne -> Shadowmourne.",
+            kSenderRuneblade, kActionReforge);
+
+        // Darion's SmartAI answers gossip on menu 10910 by casting 72995, which
+        // hands out another Shadow's Edge. The client echoes back whatever menu id
+        // it was sent, and SmartAI matches on that id, so retagging the menu here
+        // keeps that rule from firing while the reshape line is on screen. His
+        // quests and greeting text are unaffected.
+        player->PlayerTalkClass->GetGossipMenu().SetMenuId(kRunebladeMenuId);
+        SendGossipMenuFor(player, textId, creature);
+        return true;
+    }
+
+    bool CanCreatureGossipSelect(Player* player, Creature* creature, uint32 sender, uint32 action) override
+    {
+        if (sender != kSenderRuneblade || action != kActionReforge)
+            return false;
+
+        uint32 currentEntry = 0;
+        Item* item = nullptr;
+        if (!CanReforgeRuneblade(player, creature, currentEntry, item))
+            return false;
+
+        CloseGossipMenuFor(player);
+
+        uint32 const newEntry = currentEntry == kItemShadowmourne ? kItemFrostmourne : kItemShadowmourne;
+        if (!sObjectMgr->GetItemTemplate(newEntry))
+            return true;
+
+        uint8 const slot = item->GetSlot();
+        bool const equipped = item->IsEquipped();
+
+        // Equipped stats and enchantment bonuses are applied from the template the
+        // entry names, so they have to come off under the old entry and go back on
+        // under the new one. The stored enchantment slots themselves are untouched.
+        if (equipped)
+            player->_ApplyItemMods(item, slot, false);
+
+        item->SetEntry(newEntry);
+        item->SetState(ITEM_CHANGED, player);
+
+        if (equipped)
+        {
+            player->_ApplyItemMods(item, slot, true);
+            player->SetVisibleItemSlot(slot, item);
+        }
+
+        LOG_INFO("module.ascension_compat", "Reforged runeblade {} into {} for {} (item GUID {}, gems and enchantments kept)",
+            currentEntry, newEntry, player->GetName(), item->GetGUID().GetCounter());
+        return true;
+    }
+
+private:
+    // The weapon in hand is the one the player means. GetItemByEntry walks the bags
+    // and would pick a stowed spare instead, reforging a copy the player is not
+    // even holding, so the equipped slots are checked first and it is the fallback.
+    static Item* FindRunebladeInstance(Player* player, uint32& currentEntry)
+    {
+        for (uint8 slot : {EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND})
+        {
+            Item* equipped = player->GetItemByPos(INVENTORY_SLOT_BAG_0, slot);
+            if (!equipped)
+                continue;
+
+            uint32 const entry = equipped->GetEntry();
+            if (entry == kItemShadowmourne || entry == kItemFrostmourne)
+            {
+                currentEntry = entry;
+                return equipped;
+            }
+        }
+
+        for (uint32 entry : {kItemShadowmourne, kItemFrostmourne})
+        {
+            if (Item* item = player->GetItemByEntry(entry))
+            {
+                currentEntry = entry;
+                return item;
+            }
+        }
+
+        return nullptr;
+    }
+
+    static bool CanReforgeRuneblade(Player* player, Creature* creature, uint32& currentEntry, Item*& item)
+    {
+        if (!player || !creature || creature->GetEntry() != kDarionIcecrownEntry ||
+            !player->GetQuestRewardStatus(kShadowmourneFinalQuest))
+            return false;
+
+        item = FindRunebladeInstance(player, currentEntry);
+        return item != nullptr;
+    }
+};
+
+// Jailer's Bargain promises "a shield that absorbs damage equal to 30% of your maximum health",
+// but its SPELL_AURA_SCHOOL_ABSORB effect carries EffectBasePoints 0 and no scaling, so the aura
+// landed at a single point of absorption and popped on the first hit. The DBC cannot express a
+// percentage of the caster's maximum health, so compute it here.
 class spell_ascension_jailers_bargain : public AuraScript
 {
     PrepareAuraScript(spell_ascension_jailers_bargain);
@@ -6624,6 +6924,8 @@ void AddAscensionCompatScripts() {
   RegisterSpellScript(spell_ascension_reaper_extinction_buff);
   RegisterSpellScript(spell_ascension_reaper_ruin);
   RegisterSpellScript(spell_ascension_reaper_redshade);
+  new AscensionRunebladeReforge();
+  new AscensionGuideTrainer();
   RegisterSpellScript(spell_ascension_wildcard_mount);
   RegisterSpellScript(spell_ascension_legacy_quest_reward);
   new AscensionTradesmanScroll();
