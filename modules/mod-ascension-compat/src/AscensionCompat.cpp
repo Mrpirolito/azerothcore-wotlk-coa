@@ -6151,6 +6151,130 @@ class spell_ascension_jailers_bargain : public AuraScript
     }
 };
 
+// Extinction (573039) rolls its own chance.
+//
+// The tooltip promises 5% per direct Physical hit, "increased by 10% for each Reaped Soul active".
+// A SPELL_AURA_PROC_TRIGGER_SPELL can only carry the flat chance, so spell_proc hands this script
+// every qualifying hit at 100% and the real roll happens here.
+class spell_ascension_reaper_extinction : public AuraScript
+{
+    PrepareAuraScript(spell_ascension_reaper_extinction);
+
+    static constexpr uint32 BaseChance = 5;
+    static constexpr uint32 ChancePerSoul = 10;
+
+    bool Load() override
+    {
+        return ascensionCompatConfig.GetConfigValue<bool>(AscensionCompatConfig::ENABLED) &&
+            GetUnitOwner() && GetUnitOwner()->IsPlayer();
+    }
+
+    bool CheckProc(ProcEventInfo& /*eventInfo*/)
+    {
+        Unit* owner = GetUnitOwner();
+        if (!owner)
+            return false;
+
+        uint32 souls = 0;
+        if (Aura* reapedSouls = owner->GetAura(SPELL_REAPER_REAPED_SOUL))
+            souls = reapedSouls->GetStackAmount();
+
+        return roll_chance_i(int32(BaseChance + ChancePerSoul * souls));
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_ascension_reaper_extinction::CheckProc);
+    }
+};
+
+// Extinction's buff (560414) comes off when the free Slaughter is cast.
+//
+// The buff carries its own SPELL_AURA_PROC_TRIGGER_SPELL for the Stack Remover 561113, with the
+// same empty ProcTypeMask as the talent, so the free cast went out and the buff stayed. spell_proc
+// supplies the flags; this narrows them to the seven Slaughter ranks, so anything else the Reaper
+// casts leaves the buff alone.
+class spell_ascension_reaper_extinction_buff : public AuraScript
+{
+    PrepareAuraScript(spell_ascension_reaper_extinction_buff);
+
+    static constexpr std::array<uint32, 7> SlaughterRanks =
+        {{500373, 500429, 500430, 500431, 500432, 500433, 500434}};
+
+    bool Load() override
+    {
+        return ascensionCompatConfig.GetConfigValue<bool>(AscensionCompatConfig::ENABLED);
+    }
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        SpellInfo const* spellInfo = eventInfo.GetSpellInfo();
+        return spellInfo && std::find(SlaughterRanks.begin(), SlaughterRanks.end(), spellInfo->Id) !=
+            SlaughterRanks.end();
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_ascension_reaper_extinction_buff::CheckProc);
+    }
+};
+
+// Ruin (805198) answers only to Shudder Scythe.
+//
+// Its proc trigger has the same empty ProcTypeMask every one of these talents carries, so
+// spell_proc supplies the flags and this decides which spell qualifies: a proc flag can say
+// "a melee ability landed" but not which ability it was.
+class spell_ascension_reaper_ruin : public AuraScript
+{
+    PrepareAuraScript(spell_ascension_reaper_ruin);
+
+    static constexpr std::array<uint32, 5> ShudderScythe =
+        {{572382, 578261, 578262, 801322, 805708}};
+
+    bool Load() override
+    {
+        return ascensionCompatConfig.GetConfigValue<bool>(AscensionCompatConfig::ENABLED);
+    }
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        SpellInfo const* spellInfo = eventInfo.GetSpellInfo();
+        return spellInfo && std::find(ShudderScythe.begin(), ShudderScythe.end(), spellInfo->Id) !=
+            ShudderScythe.end();
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_ascension_reaper_ruin::CheckProc);
+    }
+};
+
+// Redshade (524735) answers only to Reap, and to the cast rather than the hit: the tooltip says
+// "Using Reap", and the transform is meant to be up for the next ability either way.
+class spell_ascension_reaper_redshade : public AuraScript
+{
+    PrepareAuraScript(spell_ascension_reaper_redshade);
+
+    static constexpr std::array<uint32, 10> Reap =
+        {{354319, 500357, 504056, 504057, 504058, 504557, 505151, 573302, 573303, 801327}};
+
+    bool Load() override
+    {
+        return ascensionCompatConfig.GetConfigValue<bool>(AscensionCompatConfig::ENABLED);
+    }
+
+    bool CheckProc(ProcEventInfo& eventInfo)
+    {
+        SpellInfo const* spellInfo = eventInfo.GetSpellInfo();
+        return spellInfo && std::find(Reap.begin(), Reap.end(), spellInfo->Id) != Reap.end();
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(spell_ascension_reaper_redshade::CheckProc);
+    }
+};
+
 class spell_ascension_local_mount : public SpellScript
 {
     PrepareSpellScript(spell_ascension_local_mount);
@@ -6514,6 +6638,10 @@ void AddAscensionCompatScripts() {
   RegisterSpellScript(spell_ascension_experience_potion);
   RegisterSpellScript(spell_ascension_local_mount);
   RegisterSpellScript(spell_ascension_jailers_bargain);
+  RegisterSpellScript(spell_ascension_reaper_extinction);
+  RegisterSpellScript(spell_ascension_reaper_extinction_buff);
+  RegisterSpellScript(spell_ascension_reaper_ruin);
+  RegisterSpellScript(spell_ascension_reaper_redshade);
   RegisterSpellScript(spell_ascension_wildcard_mount);
   RegisterSpellScript(spell_ascension_legacy_quest_reward);
   new AscensionTradesmanScroll();
