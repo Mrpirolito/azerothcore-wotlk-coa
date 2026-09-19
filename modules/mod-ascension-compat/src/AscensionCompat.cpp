@@ -224,6 +224,13 @@ constexpr uint32 SPELL_REAPER_GENERATE_SOUL = 805078;
 constexpr uint32 SPELL_REAPER_SCYTHE_RUSH = 500359;
 constexpr uint32 SPELL_REAPER_SCYTHE_RUSH_MARKER = 500377;
 constexpr uint32 SPELL_REAPER_HARVEST_TIME = 803995;
+// Frostbitten Battleplate of the Risen Nightmare, the Reaper's Icecrown tier. The four piece bonus
+// is the one part of the set that no DBC record can express: it keys off a Reaped Soul actually
+// being spent, which only this module knows about. 2990002 is the passive the set applies through
+// ItemSet.dbc; 2990003 is the Strength buff it hands out, capped at three stacks by its own
+// CumulativeAura.
+constexpr uint32 SPELL_REAPER_TIER_FROSTBITTEN_4P = 2990002;
+constexpr uint32 SPELL_REAPER_HARVESTED_MIGHT = 2990003;
 constexpr char ASCENSION_LOCAL_RESOURCE_PREFIX[] = "ASC_LOCAL_RESOURCE";
 constexpr char ASCENSION_ACTIVE_SPEC_SETTING[] = "core.ascension_active_spec";
 constexpr char ASCENSION_TALENT_BUILD_SETTING_PREFIX[] = "core.ascension_build.";
@@ -2874,6 +2881,28 @@ private:
                 aura->ModStackAmount(amount - 1);
     }
 
+    // Four piece bonus: a stack of Harvested Might for every cast that actually spends souls, with
+    // the timer restarted so a rotation that keeps spending keeps all three stacks.
+    static void GrantHarvestedMight(Player* player)
+    {
+        if (!player->HasAura(SPELL_REAPER_TIER_FROSTBITTEN_4P))
+            return;
+
+        if (Aura* aura = player->GetAura(SPELL_REAPER_HARVESTED_MIGHT))
+        {
+            aura->ModStackAmount(1);
+            aura->RefreshDuration();
+            return;
+        }
+
+        player->AddAura(SPELL_REAPER_HARVESTED_MIGHT, player);
+    }
+
+    // Harvest Time's tooltip is specific: it is about Soul Infusion, the buff its own effect names.
+    // Only a spell that requires Soul Infusion (CasterAuraSpell 803031) is therefore exempt. An
+    // ability paid for with Reaped Souls alone still pays - Sanguine Orb (500361) and Tormented
+    // Souls (500483) both carry CasterAuraSpell 500363, Reaped Soul, so an unscoped exemption made
+    // them free for a Reaper holding a single soul and no infusion at all.
     static bool HarvestTimePreserves(Player const* player, SpellInfo const* spellInfo)
     {
         return spellInfo->CasterAuraSpell == SPELL_REAPER_SOUL_INFUSION &&
@@ -2899,15 +2928,26 @@ private:
 
     static void ConsumeReaperSouls(Player* player, Spell* spell)
     {
+        if (ConsumeReaperSoulsImpl(player, spell))
+            GrantHarvestedMight(player);
+    }
+
+    // Returns whether the cast really spent something, so the caller knows when the set bonus fires.
+    static bool ConsumeReaperSoulsImpl(Player* player, Spell* spell)
+    {
         if (player->getClass() != CLASS_REAPER)
-            return;
+            return false;
 
         SpellInfo const* spellInfo = spell->GetSpellInfo();
 
-        if (HarvestTimePreserves(player, spellInfo))
-            return;
-
         uint32 spellId = spellInfo->Id;
+
+        // Harvest Time preserves the cost outright rather than rolling for it - an eight second
+        // window a Reaper can plan a rotation around is what the ability is for, and a coin flip
+        // per cast is not something the player can act on. Nothing is spent, so the four piece set
+        // bonus does not fire either.
+        if (HarvestTimePreserves(player, spellInfo))
+            return false;
 
         if (std::find(REAPER_ALL_SOUL_CONSUMERS.begin(),
                 REAPER_ALL_SOUL_CONSUMERS.end(), spellId) !=
@@ -2915,7 +2955,7 @@ private:
         {
             player->RemoveAurasDueToSpell(SPELL_REAPER_REAPED_SOUL);
             player->RemoveAurasDueToSpell(SPELL_REAPER_SOUL_INFUSION);
-            return;
+            return true;
         }
 
         if (spellInfo->CasterAuraSpell == SPELL_REAPER_SOUL_INFUSION &&
@@ -2924,7 +2964,7 @@ private:
         {
             player->CastSpell(player, SPELL_REAPER_SOUL_INFUSION_REMOVER, true);
             ApplyAscensionReaperSoulInfusionSpent(player);
-            return;
+            return true;
         }
 
         for (std::pair<uint32, uint32> const& range :
@@ -2933,9 +2973,11 @@ private:
             if (spellId >= range.first && spellId <= range.second)
             {
                 ModifyAuraStacks(player, SPELL_REAPER_REAPED_SOUL, -1);
-                return;
+                return true;
             }
         }
+
+        return false;
     }
 
     void DecayStatic(Player* player, uint32 diff) const
