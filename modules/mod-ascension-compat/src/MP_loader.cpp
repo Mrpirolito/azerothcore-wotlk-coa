@@ -228,6 +228,7 @@ void AddSC_AscensionReaperRuin();
 void AddSC_AscensionReaperRedshade();
 void AddSC_AscensionReaperSpellContracts();
 void AddSC_AscensionReaperTalentProcs();
+void AddSC_AscensionLevelScalingToggle();
 void AddSC_AscensionPersonalBank();
 void AddSC_AscensionWisdomball();
 void AddSC_AscensionBloodmageTalents();
@@ -457,6 +458,7 @@ void Addmod_ascension_compatScripts()
     AddSC_AscensionReaperRedshade();
     AddSC_AscensionReaperSpellContracts();
     AddSC_AscensionReaperTalentProcs();
+    AddSC_AscensionLevelScalingToggle();
     AddSC_AscensionPersonalBank();
     AddSC_AscensionWisdomball();
     AddSC_AscensionBloodmageTalents();
