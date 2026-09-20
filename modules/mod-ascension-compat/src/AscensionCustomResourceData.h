@@ -109,7 +109,10 @@ struct ResourceGainRule
     std::uint8_t ChancePercent = 100;
 };
 
-inline constexpr std::array<ResourceGainRule, 183> ResourceGainRules =
+// These active abilities advertise resource generation in their tooltips, but
+// their public Spell.dbc records contain no effect that performs it. Ranges are
+// rank chains verified against the local Ascension spell dump.
+inline constexpr std::array<ResourceGainRule, 187> ResourceGainRules =
 {{
     {14, 524706, 524706, 800058, 1, ResourceMutation::AuraStacks,
         ResourceGainEvent::FirstSuccessfulHostileTarget},
@@ -370,6 +373,18 @@ inline constexpr std::array<ResourceGainRule, 183> ResourceGainRules =
     {30, 573302, 573303, 805077, 1, ResourceMutation::AuraStacks,
         ResourceGainEvent::FirstSuccessfulDamagingHit},
     {30, 573302, 573303, 355461, 1, ResourceMutation::TriggerSpell,
+        ResourceGainEvent::FirstSuccessfulDamagingHit},
+    // Redshade turns Reap into Thresh and Thresh into Bloodshatter. Both say
+    // "Generates 1 Soul Fragment" and "generating Runic Power" in their own
+    // tooltips, and neither record performs either, so the transformed button
+    // paid nothing while the ability it replaced paid in full.
+    {30, 505170, 505170, 805077, 1, ResourceMutation::AuraStacks,
+        ResourceGainEvent::FirstSuccessfulDamagingHit},
+    {30, 505170, 505170, 355461, 1, ResourceMutation::TriggerSpell,
+        ResourceGainEvent::FirstSuccessfulDamagingHit},
+    {30, 505326, 505326, 805077, 1, ResourceMutation::AuraStacks,
+        ResourceGainEvent::FirstSuccessfulDamagingHit},
+    {30, 505326, 505326, 355461, 1, ResourceMutation::TriggerSpell,
         ResourceGainEvent::FirstSuccessfulDamagingHit},
     {30, 801328, 801328, 355461, 1, ResourceMutation::TriggerSpell,
         ResourceGainEvent::FirstSuccessfulHostileTarget},

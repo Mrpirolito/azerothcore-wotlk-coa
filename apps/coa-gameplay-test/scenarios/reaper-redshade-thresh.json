@@ -1,7 +1,7 @@
 {
  "schema": 1,
  "name": "Redshade turns the Reap button into Thresh and then Bloodshatter",
- "contract": "Redshade 524735 promises that using Reap transforms it into Thresh for 10 seconds, and its buff Thresh (Dummy) 525058 says so on the character. Casting Thresh then leaves Bloodshatter (Dummy) 525299 for the second step. Both are plain SPELL_AURA_DUMMY, so aura_ascension_reaper_redshade_transform is what swaps the button, through Player::SetTemporarySpellReplacement: the client redraws it from SMSG_SUPERCEDED_SPELL and the cast handler sends the replacement. The Reaper does not learn Thresh or Bloodshatter, so the script teaches each one for as long as its buff lasts.",
+ "contract": "Redshade 524735 promises that using Reap transforms it into Thresh for 10 seconds, and its buff Thresh (Dummy) 525058 says so on the character. Casting Thresh then leaves Bloodshatter (Dummy) 525299 for the second step. Both are plain SPELL_AURA_DUMMY, so aura_ascension_reaper_redshade_transform swaps the button through Player::SetTemporarySpellReplacement: the client redraws it from SMSG_SUPERCEDED_SPELL and the cast handler sends the replacement. A Reaper never learns Thresh or Bloodshatter, so owning the talent is what puts them in the spellbook, once, rather than each buff teaching and forgetting them and announcing both in chat. Both read Generates 1 Soul Fragment and generating Runic Power, and neither record performs either, so ResourceGainRules pays them the way it pays every rank of Reap.",
  "timeout_ms": 120000,
  "players": [
   { "id": "reaper", "race": 10, "class": 30, "level": 80 }
@@ -12,14 +12,17 @@
  "steps": [
   { "action": "wait", "label": "Let spawn AI and level scaling settle", "ms": 6000 },
   { "action": "learn", "actor": "reaper", "spell": 573303 },
+  { "action": "learn", "actor": "reaper", "spell": 524735 },
+  { "action": "assert", "label": "The talent puts Thresh in the spellbook", "actor": "reaper", "metric": "knows_spell", "spell": 505170, "equals": 1, "within_ms": 3000 },
+  { "action": "assert", "label": "The talent puts Bloodshatter in the spellbook", "actor": "reaper", "metric": "knows_spell", "spell": 505326, "equals": 1 },
   { "action": "assert", "label": "The button starts as Reap", "actor": "reaper", "metric": "temporary_spell_replacement", "spell": 573303, "equals": 573303 },
   { "action": "set_aura", "actor": "reaper", "spell": 525058, "stacks": 1 },
-  { "action": "assert", "label": "The Thresh step is up", "actor": "reaper", "metric": "aura", "spell": 525058, "equals": 1 },
   { "action": "assert", "label": "The button now casts Thresh", "actor": "reaper", "metric": "temporary_spell_replacement", "spell": 573303, "equals": 505170, "within_ms": 3000 },
-  { "action": "assert", "label": "Thresh is in the spellbook while its buff lasts", "actor": "reaper", "metric": "knows_spell", "spell": 505170, "equals": 1 },
   { "action": "cast", "actor": "reaper", "spell": 573303, "target": "enemy" },
   { "action": "assert", "label": "Thresh left the Bloodshatter step", "actor": "reaper", "metric": "aura", "spell": 525299, "equals": 1, "within_ms": 3000 },
-  { "action": "assert", "label": "The Thresh step is spent", "actor": "reaper", "metric": "aura", "spell": 525058, "equals": 0, "within_ms": 3000 },
-  { "action": "assert", "label": "The button now casts Bloodshatter", "actor": "reaper", "metric": "temporary_spell_replacement", "spell": 573303, "equals": 505326, "within_ms": 3000 }
+  { "action": "assert", "label": "Thresh generated a Soul Fragment", "actor": "reaper", "metric": "aura_stacks", "spell": 805077, "min": 1, "within_ms": 3000 },
+  { "action": "assert", "label": "Thresh generated Runic Power", "actor": "reaper", "metric": "power", "power": 6, "min": 1 },
+  { "action": "assert", "label": "The button now casts Bloodshatter", "actor": "reaper", "metric": "temporary_spell_replacement", "spell": 573303, "equals": 505326, "within_ms": 3000 },
+  { "action": "assert", "label": "Thresh and Bloodshatter stay in the spellbook through the loop", "actor": "reaper", "metric": "knows_spell", "spell": 505170, "equals": 1 }
  ]
 }
