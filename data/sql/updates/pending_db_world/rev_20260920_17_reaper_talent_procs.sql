@@ -205,4 +205,3 @@ DELETE FROM `spell_script_names` WHERE `spell_id` = 805196
   AND `ScriptName` = 'spell_ascension_reaper_talent_proc';
 INSERT INTO `spell_script_names` (`spell_id`, `ScriptName`) VALUES
 (805196, 'spell_ascension_reaper_talent_proc');
-

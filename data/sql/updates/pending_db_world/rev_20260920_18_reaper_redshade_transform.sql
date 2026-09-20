@@ -5,7 +5,9 @@
 -- on it: the buff appeared and Reap stayed Reap. Casting Thresh then applies Bloodshatter
 -- (Dummy) 525299 for the second step, with the same problem.
 --
--- spell_ascension_reaper_redshade_reap answers both, on every rank of Reap.
+-- spell_ascension_reaper_redshade_reap answers both, on the eight ranks of Reap the button casts.
+-- Not 801327: it is named Reap too, and its rank reads "Heal" - a self-targeted heal that has
+-- nothing to do with the strike, so replacing it would have eaten a heal the player asked for.
 DELETE FROM `spell_script_names` WHERE `ScriptName` = 'spell_ascension_reaper_redshade_reap';
 INSERT INTO `spell_script_names` (`spell_id`, `ScriptName`) VALUES
 (354319, 'spell_ascension_reaper_redshade_reap'),
@@ -16,5 +18,4 @@ INSERT INTO `spell_script_names` (`spell_id`, `ScriptName`) VALUES
 (504557, 'spell_ascension_reaper_redshade_reap'),
 (505151, 'spell_ascension_reaper_redshade_reap'),
 (573302, 'spell_ascension_reaper_redshade_reap'),
-(573303, 'spell_ascension_reaper_redshade_reap'),
-(801327, 'spell_ascension_reaper_redshade_reap');
+(573303, 'spell_ascension_reaper_redshade_reap');
