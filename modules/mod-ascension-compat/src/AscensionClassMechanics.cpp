@@ -1048,6 +1048,39 @@ void ApplyClientSpellCharges(SpellInfo* spellInfo)
     spellInfo->ChargeRecoveryKey = root;
     spellInfo->ChargeCategoryId = charge->second.Category;
 }
+
+// SpellInfo::IsAffected reads an empty EffectSpellClassMask as "every spell of the family", which
+// is right for the stock classes and wrong for these: an Ascension talent names the abilities it
+// changes and carries their mask, and a row that ships without one is unfinished data, not a
+// wildcard. For cooldowns that difference is not cosmetic. The Reaper alone has four such rows
+// worth -30000, -10000, -5000 and -4000 milliseconds, and together they drove every cooldown and
+// charge recovery the class has to the one-millisecond floor: Haunt spent its charges and had
+// them all back before the next cast, which reads in game as charges that are never spent.
+//
+// The mask is filled in where the tooltip names the ability. Where it names one that has no mask
+// of its own, such as Crimson Scythe, no mask can express it, so the modifier is disarmed here
+// instead of being left pointing at the whole class.
+void DisarmUnmaskedCooldownModifier(SpellInfo* spellInfo)
+{
+    if (!IsCustomClassFamily(spellInfo->SpellFamilyName))
+        return;
+
+    for (SpellEffectInfo& effect : spellInfo->Effects)
+    {
+        if (effect.Effect != SPELL_EFFECT_APPLY_AURA)
+            continue;
+        if (effect.ApplyAuraName != SPELL_AURA_ADD_FLAT_MODIFIER &&
+            effect.ApplyAuraName != SPELL_AURA_ADD_PCT_MODIFIER)
+            continue;
+        if (effect.MiscValue != SPELLMOD_COOLDOWN && effect.MiscValue != SPELLMOD_GLOBAL_COOLDOWN)
+            continue;
+        if (effect.SpellClassMask)
+            continue;
+
+        effect.ApplyAuraName = SPELL_AURA_DUMMY;
+        effect.MiscValue = 0;
+    }
+}
 }
 
 void ApplyAscensionClassMechanics(SpellInfo* spellInfo)
@@ -1153,6 +1186,7 @@ void ApplyAscensionClassMechanics(SpellInfo* spellInfo)
     spellInfo->IsDeprecatedForPlayers =
         HasDeprecatedWord(spellInfo->SpellName[0]) || HasDeprecatedWord(spellInfo->Rank[0]);
     ApplyClientSpellCharges(spellInfo);
+    DisarmUnmaskedCooldownModifier(spellInfo);
 
     if (IsCustomClassFamily(spellInfo->SpellFamilyName))
         spellInfo->EquippedItemInventoryTypeMask = int32(RepairedRangedInventoryMask(spellInfo->EquippedItemClass,

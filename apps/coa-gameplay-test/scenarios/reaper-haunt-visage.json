@@ -1,7 +1,7 @@
 {
  "schema": 1,
  "name": "Haunt spends its three charges and leaves its caster alone",
- "contract": "Haunt 573425 summons a visage of the Reaper for 10 seconds, and SpellCharges.dbc gives it category 210: three charges recharging in 30 seconds. It summoned creature 840000, the Witch Doctor's Mirage, whose script opens with a class check and returns for anyone else, so the Reaper got a neutral level one creature that never moved. 990020 is the Reaper's own visage under npc_ascension_reaper_haunt: it copies the caster's appearance through Clone Me! 45204, takes their faction and level so enemies can hit it, takes their GUID as owner, and runs in a random direction. Underwalk 800797 comes first because Haunt's ShapeshiftMask only allows Stealth and Shadowform. Charges are a pool of their own, separate from cooldowns, so spell_charges is what shows a cast being paid for: a charged spell reports no cooldown at all until the pool empties.",
+ "contract": "Haunt 573425 summons a visage of the Reaper for 10 seconds, and SpellCharges.dbc gives it category 210: three charges recharging in 30 seconds. It summoned creature 840000, the Witch Doctor's Mirage, whose script opens with a class check and returns for anyone else, so the Reaper got a neutral level one creature that never moved. 990020 is the Reaper's own visage under npc_ascension_reaper_haunt: it copies the caster's appearance through Clone Me! 45204, takes their faction and level so enemies can hit it, takes their GUID as owner, and runs in a random direction. Underwalk 800797 comes first because Haunt's ShapeshiftMask only allows Stealth and Shadowform. Charges are a pool of their own, separate from cooldowns, so spell_charges is what shows a cast being paid for: a charged spell reports no cooldown at all until the pool empties. The last step is what catches the modifier bug: four Reaper talents carry a cooldown modifier with an empty mask, which SpellInfo::IsAffected reads as every spell of the family, and together they clamped the recharge to its one millisecond floor, so the charge was back before the next cast and looked like it had never been spent.",
  "timeout_ms": 120000,
  "players": [
   { "id": "reaper", "race": 10, "class": 30, "level": 80 }
@@ -17,6 +17,8 @@
   { "action": "assert", "label": "The visage is the caster's own summon", "actor": "reaper", "metric": "owned_creature_count", "entry": 990020, "equals": 1, "within_ms": 4000 },
   { "action": "assert", "label": "The cast spends one charge", "actor": "reaper", "metric": "spell_charges", "spell": 573425, "equals": 2, "within_ms": 3000 },
   { "action": "assert", "label": "Charges are left, so the spell reports no cooldown", "actor": "reaper", "metric": "cooldown_ms", "spell": 573425, "equals": 0 },
-  { "action": "assert", "label": "The caster stays out of combat", "actor": "reaper", "metric": "combat", "equals": 0 }
+  { "action": "assert", "label": "The caster stays out of combat", "actor": "reaper", "metric": "combat", "equals": 0 },
+  { "action": "wait", "label": "Well inside the 30 second recharge", "ms": 5000 },
+  { "action": "assert", "label": "The spent charge has not come straight back", "actor": "reaper", "metric": "spell_charges", "spell": 573425, "equals": 2 }
  ]
 }
