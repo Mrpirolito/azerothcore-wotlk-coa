@@ -1,7 +1,7 @@
 {
  "schema": 1,
- "name": "Redshade turns Reap into Thresh and then Bloodshatter",
- "contract": "Redshade 524735 promises that using Reap transforms it into Thresh for 10 seconds, and its buff Thresh (Dummy) 525058 says so on the character. Casting Thresh then leaves Bloodshatter (Dummy) 525299 for the second step. Both dummies are plain SPELL_AURA_DUMMY, so spell_ascension_reaper_redshade_reap is what makes Reap cast the replacement.",
+ "name": "Redshade turns the Reap button into Thresh and then Bloodshatter",
+ "contract": "Redshade 524735 promises that using Reap transforms it into Thresh for 10 seconds, and its buff Thresh (Dummy) 525058 says so on the character. Casting Thresh then leaves Bloodshatter (Dummy) 525299 for the second step. Both are plain SPELL_AURA_DUMMY, so aura_ascension_reaper_redshade_transform is what swaps the button, through Player::SetTemporarySpellReplacement: the client redraws it from SMSG_SUPERCEDED_SPELL and the cast handler sends the replacement. The Reaper does not learn Thresh or Bloodshatter, so the script teaches each one for as long as its buff lasts.",
  "timeout_ms": 120000,
  "players": [
   { "id": "reaper", "race": 10, "class": 30, "level": 80 }
@@ -12,12 +12,14 @@
  "steps": [
   { "action": "wait", "label": "Let spawn AI and level scaling settle", "ms": 6000 },
   { "action": "learn", "actor": "reaper", "spell": 573303 },
-  { "action": "learn", "actor": "reaper", "spell": 505170 },
-  { "action": "learn", "actor": "reaper", "spell": 505326 },
+  { "action": "assert", "label": "The button starts as Reap", "actor": "reaper", "metric": "temporary_spell_replacement", "spell": 573303, "equals": 573303 },
   { "action": "set_aura", "actor": "reaper", "spell": 525058, "stacks": 1 },
-  { "action": "assert", "label": "The Thresh transform is up", "actor": "reaper", "metric": "aura", "spell": 525058, "equals": 1 },
+  { "action": "assert", "label": "The Thresh step is up", "actor": "reaper", "metric": "aura", "spell": 525058, "equals": 1 },
+  { "action": "assert", "label": "The button now casts Thresh", "actor": "reaper", "metric": "temporary_spell_replacement", "spell": 573303, "equals": 505170, "within_ms": 3000 },
+  { "action": "assert", "label": "Thresh is in the spellbook while its buff lasts", "actor": "reaper", "metric": "knows_spell", "spell": 505170, "equals": 1 },
   { "action": "cast", "actor": "reaper", "spell": 573303, "target": "enemy" },
-  { "action": "assert", "label": "Reap cast Thresh, which left the Bloodshatter step", "actor": "reaper", "metric": "aura", "spell": 525299, "equals": 1, "within_ms": 3000 },
-  { "action": "assert", "label": "The Thresh step is spent", "actor": "reaper", "metric": "aura", "spell": 525058, "equals": 0, "within_ms": 3000 }
+  { "action": "assert", "label": "Thresh left the Bloodshatter step", "actor": "reaper", "metric": "aura", "spell": 525299, "equals": 1, "within_ms": 3000 },
+  { "action": "assert", "label": "The Thresh step is spent", "actor": "reaper", "metric": "aura", "spell": 525058, "equals": 0, "within_ms": 3000 },
+  { "action": "assert", "label": "The button now casts Bloodshatter", "actor": "reaper", "metric": "temporary_spell_replacement", "spell": 573303, "equals": 505326, "within_ms": 3000 }
  ]
 }
