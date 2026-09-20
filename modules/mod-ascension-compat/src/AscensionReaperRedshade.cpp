@@ -4,32 +4,39 @@
 //
 // The talent's proc applies Thresh (Dummy) 525058, whose tooltip reads "Your Reap has transformed
 // into Thresh!". Casting Thresh then applies Bloodshatter (Dummy) 525299 for the second step. Both
-// carry Ascension aura 337 with the replacement in EffectMiscValue, which is what the client reads
-// to redraw the button, so the client half of the transform needs nothing from the server.
+// are dummies as far as the server is concerned, so all three parts of the promise are ours: the
+// cast has to be legal, the button has to say what the cast will do, and neither can announce
+// itself in chat.
 //
-// The server half is that the cast has to be legal. CMSG_CAST_SPELL is refused outright for a
-// spell the caster does not have active - "cheater? kick? ban?" - so the redrawn button spent a
-// global cooldown and nothing else happened. A Reaper never learns Thresh or Bloodshatter: they
-// exist only as what Redshade turns Reap into, so owning the talent is what puts them in the
-// spellbook, once, for as long as the talent is taken.
+// The cast: CMSG_CAST_SPELL is refused outright for a spell the caster does not have active -
+// "cheater? kick? ban?" - so a button that merely looks like Thresh spends a global cooldown and
+// does nothing. A Reaper never learns Thresh or Bloodshatter, because they exist only as what
+// Redshade turns Reap into, so owning the talent is what puts them in the spellbook, once, for as
+// long as the talent is taken. Player::addSpell with learnFromSkill set is the way in that sends
+// no packet: Player::learnSpell answers a temporary learn with SMSG_LEARNED_SPELL, which the
+// client prints as "You have learned a new ability: Thresh".
 //
-// Nothing is sent to the client, because everything that can be sent is announced in chat on this
-// client. Player::learnSpell answers a temporary learn with SMSG_LEARNED_SPELL, which prints "You
-// have learned a new ability: Thresh"; SendInitialSpells prints one line per ability the client
-// did not already have; and SMSG_SUPERCEDED_SPELL, which is what
-// Player::SetTemporarySpellReplacement sends to move a button, prints the same line for whichever
-// spell it names - including the rank of Reap it hands the button back to. Player::addSpell with
-// learnFromSkill set is the one way in that says nothing at all.
+// The button: SMSG_ACTION_BUTTONS, the packet a druid's forms already use to swap a whole bar.
+// The bar the client is given is the character's own, with the ranks of Reap reading as the
+// replacement; putting it back is the character's own bar again, unchanged. The obvious
+// alternative, SMSG_SUPERCEDED_SPELL - which is what Player::SetTemporarySpellReplacement sends -
+// prints that same learned-ability line for whichever spell it names, including the rank of Reap
+// it hands the button back to, so it announced the transform twice per cast.
 //
-// spell_ascension_reaper_redshade_reap covers the other direction: a client that still sends the
-// rank of Reap on the bar gets the replacement cast for it.
+// And spell_ascension_reaper_redshade_reap covers the other direction: a client that still sends
+// the rank on the bar gets the replacement cast for it.
 
 #include "Player.h"
+#include "Opcodes.h"
 #include "ScriptMgr.h"
 #include "SpellAuraEffects.h"
 #include "SpellAuras.h"
 #include "SpellInfo.h"
 #include "SpellScript.h"
+#include "WorldPacket.h"
+#include "WorldSession.h"
+#include <algorithm>
+#include <array>
 
 namespace
 {
@@ -37,6 +44,41 @@ constexpr uint32 SPELL_THRESH_DUMMY = 525058;
 constexpr uint32 SPELL_THRESH = 505170;
 constexpr uint32 SPELL_BLOODSHATTER_DUMMY = 525299;
 constexpr uint32 SPELL_BLOODSHATTER = 505326;
+
+constexpr std::array<uint32, 9> ReapRanks = { 354319, 500357, 504056, 504057, 504058, 504557,
+    505151, 573302, 573303 };
+
+bool IsReap(uint32 spellId)
+{
+    return std::find(ReapRanks.begin(), ReapRanks.end(), spellId) != ReapRanks.end();
+}
+
+// The character's own bar, with every button that holds a rank of Reap reading as the replacement.
+void SendTransformedBar(Player* player, uint32 replacement)
+{
+    if (!player->GetSession())
+        return;
+
+    WorldPacket data(SMSG_ACTION_BUTTONS, 1 + (MAX_ACTION_BUTTONS * 4));
+    data << uint8(1); // button data follows, as the core sends after a spec swap
+    for (uint8 button = 0; button < MAX_ACTION_BUTTONS; ++button)
+    {
+        ActionButton const* action = player->GetActionButton(button);
+        if (!action)
+        {
+            data << uint32(0);
+            continue;
+        }
+
+        uint32 packed = action->packedData;
+        if (action->GetType() == ACTION_BUTTON_SPELL && IsReap(action->GetAction()))
+            packed = replacement | (uint32(ACTION_BUTTON_SPELL) << 24);
+
+        data << uint32(packed);
+    }
+
+    player->GetSession()->SendPacket(&data);
+}
 
 // Taking the talent is what owns the two transformed abilities.
 class aura_ascension_reaper_redshade_spells : public AuraScript
@@ -82,6 +124,52 @@ class aura_ascension_reaper_redshade_spells : public AuraScript
     }
 };
 
+// Each step of the transform, on the buff that announces it.
+class aura_ascension_reaper_redshade_transform : public AuraScript
+{
+    PrepareAuraScript(aura_ascension_reaper_redshade_transform);
+
+    uint32 Replacement() const
+    {
+        return GetId() == SPELL_BLOODSHATTER_DUMMY ? SPELL_BLOODSHATTER : SPELL_THRESH;
+    }
+
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ SPELL_THRESH, SPELL_BLOODSHATTER });
+    }
+
+    void Apply(AuraEffect const* /*effect*/, AuraEffectHandleModes /*mode*/)
+    {
+        if (Player* player = GetTarget()->ToPlayer())
+            SendTransformedBar(player, Replacement());
+    }
+
+    void Remove(AuraEffect const* /*effect*/, AuraEffectHandleModes /*mode*/)
+    {
+        Player* player = GetTarget()->ToPlayer();
+        if (!player)
+            return;
+
+        // The second step replaces the same buttons and is applied before this one is removed, so
+        // the bar only goes back once no step is left to own it.
+        uint32 const other = GetId() == SPELL_BLOODSHATTER_DUMMY ? SPELL_THRESH_DUMMY
+            : SPELL_BLOODSHATTER_DUMMY;
+        if (player->HasAura(other))
+            return;
+
+        player->SendActionButtons(1);
+    }
+
+    void Register() override
+    {
+        AfterEffectApply += AuraEffectApplyFn(aura_ascension_reaper_redshade_transform::Apply,
+            EFFECT_0, SPELL_AURA_ANY, AURA_EFFECT_HANDLE_REAL);
+        AfterEffectRemove += AuraEffectRemoveFn(aura_ascension_reaper_redshade_transform::Remove,
+            EFFECT_0, SPELL_AURA_ANY, AURA_EFFECT_HANDLE_REAL);
+    }
+};
+
 // The cast itself, on every rank of Reap, for the client that still sends the rank on the bar.
 class spell_ascension_reaper_redshade_reap : public SpellScript
 {
@@ -117,5 +205,6 @@ class spell_ascension_reaper_redshade_reap : public SpellScript
 void AddSC_AscensionReaperRedshade()
 {
     RegisterSpellScript(aura_ascension_reaper_redshade_spells);
+    RegisterSpellScript(aura_ascension_reaper_redshade_transform);
     RegisterSpellScript(spell_ascension_reaper_redshade_reap);
 }

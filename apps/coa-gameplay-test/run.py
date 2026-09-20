@@ -33,7 +33,7 @@ METRICS = {
     'health', 'health_pct', 'max_health', 'power', 'max_power', 'alive', 'combat', 'casting', 'level',
     'aura', 'aura_stacks', 'aura_charges', 'aura_duration_ms', 'aura_amount', 'aura_positive',
     'knows_spell', 'has_talent', 'talent_points', 'cooldown_ms', 'global_cooldown_ms', 'spell_charges',
-    'item_count', 'carried_item_count', 'bank_bag_slots', 'bank_shows', 'system_messages',
+    'action_button', 'item_count', 'carried_item_count', 'bank_bag_slots', 'bank_shows', 'system_messages',
     'taxi_node', 'pet_entry', 'pet_aura_stacks', 'pet_is_banker', 'pet_display', 'pet_scale', 'owned_creature_count',
     'charm_entry', 'charm_aura_stacks', 'controls_self', 'private_instance',
     'dynamic_object', 'dynamic_object_duration_ms', 'gossip_options',
@@ -86,7 +86,7 @@ PLAYER_STAT_METRICS = {
     'spell_heal_count', 'spell_heal_total', 'spell_effective_heal_total',
     'pet_aura_amount', 'pet_aura_amplitude_ms', 'pet_max_health', 'pet_attack_power', 'pet_run_speed_rate',
 }
-METRIC_FIELDS = {'actor', 'metric', 'spell', 'power', 'caster', 'effect', 'item', 'entry',
+METRIC_FIELDS = {'actor', 'metric', 'spell', 'power', 'caster', 'effect', 'item', 'entry', 'button',
                  'relative_to', 'ratio_to', 'target', 'quest', 'id', 'stat', 'school', 'hand', 'rating', 'op',
                  'base', 'key', 'index', 'pet', 'critical', 'target_pet', 'periodic', 'name',
                  'min_distance', 'owner_display'}
@@ -100,6 +100,7 @@ ACTIONS = {
     'snapshot': ({'actor', 'metric', 'save_as'}, METRIC_FIELDS | {'save_as'}),
     'assert': ({'actor', 'metric'}, METRIC_FIELDS | {'equals', 'min', 'max', 'within_ms'}),
     'learn': ({'actor', 'spell'}, {'actor', 'spell'}),
+    'set_action_button': ({'actor', 'spell', 'button'}, {'actor', 'spell', 'button'}),
     'unlearn': ({'actor', 'spell'}, {'actor', 'spell', 'all_specs'}),
     'money': ({'actor', 'copper'}, {'actor', 'copper'}),
     'set_aura': ({'actor', 'spell', 'stacks'}, {'actor', 'spell', 'stacks', 'pet'}),
@@ -411,7 +412,7 @@ def validate(scenario):
                 require('quest' in step, f'{where}: metric needs quest')
             if metric == 'gossip_text':
                 require('id' in step, f'{where}: metric needs text id')
-            if metric in {'knows_spell', 'has_talent', 'talent_points', 'cooldown_ms', 'spell_charges', 'item_count',
+            if metric in {'knows_spell', 'has_talent', 'talent_points', 'cooldown_ms', 'spell_charges', 'action_button', 'item_count',
                           'carried_item_count', 'bank_bag_slots', 'taxi_node', 'cast_pushback_ms',
                           'bank_shows', 'system_messages', 'cast_failure',
                           'pet_entry', 'pet_aura_stacks', 'pet_is_banker', 'pet_display', 'pet_scale',

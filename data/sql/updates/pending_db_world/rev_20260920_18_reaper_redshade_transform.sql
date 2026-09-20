@@ -5,9 +5,10 @@
 -- it: the buff appeared and the button still said Reap. Casting Thresh then applies
 -- Bloodshatter (Dummy) 525299 for the second step, with the same problem.
 --
--- Both buffs carry Ascension aura 337 with the replacement in EffectMiscValue, so the client
--- redraws the button by itself. aura_ascension_reaper_redshade_spells is what makes the cast
--- legal, by owning the two abilities for as long as the talent is taken, and
+-- aura_ascension_reaper_redshade_spells owns the two abilities for as long as the talent is
+-- taken, which is what makes the cast legal at all; aura_ascension_reaper_redshade_transform
+-- redraws the bar with SMSG_ACTION_BUTTONS, the packet a druid's forms use, so no chat line
+-- is printed for a button that changed; and
 -- spell_ascension_reaper_redshade_reap sends the replacement when the client still casts the
 -- rank on the bar. Not 801327: it is named Reap as well, and its rank reads "Heal" - a
 -- self-targeted heal with nothing to do with the strike, so replacing it would have eaten a
@@ -17,6 +18,8 @@ DELETE FROM `spell_script_names` WHERE `ScriptName` IN
    'aura_ascension_reaper_redshade_spells');
 INSERT INTO `spell_script_names` (`spell_id`, `ScriptName`) VALUES
 (524735, 'aura_ascension_reaper_redshade_spells'),
+(525058, 'aura_ascension_reaper_redshade_transform'),
+(525299, 'aura_ascension_reaper_redshade_transform'),
 (354319, 'spell_ascension_reaper_redshade_reap'),
 (500357, 'spell_ascension_reaper_redshade_reap'),
 (504056, 'spell_ascension_reaper_redshade_reap'),
