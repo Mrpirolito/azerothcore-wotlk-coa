@@ -14,6 +14,7 @@ DELETE FROM `spell_script_names` WHERE `ScriptName` IN
   ('spell_ascension_reaper_redshade_reap', 'aura_ascension_reaper_redshade_transform',
    'aura_ascension_reaper_redshade_spells');
 INSERT INTO `spell_script_names` (`spell_id`, `ScriptName`) VALUES
+(524735, 'aura_ascension_reaper_redshade_spells'),
 (525058, 'aura_ascension_reaper_redshade_transform'),
 (525299, 'aura_ascension_reaper_redshade_transform'),
 (354319, 'spell_ascension_reaper_redshade_reap'),
