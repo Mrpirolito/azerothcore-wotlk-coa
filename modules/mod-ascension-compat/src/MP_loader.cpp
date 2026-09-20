@@ -223,6 +223,8 @@ void AddSC_AscensionAdventurerCache();
 void AddSC_AscensionBankVoucher();
 void AddSC_AscensionFeatherOfAncients();
 void AddSC_AscensionReaperHaunt();
+void AddSC_AscensionReaperRuin();
+void AddSC_AscensionReaperRedshade();
 void AddSC_AscensionReaperTalentProcs();
 void AddSC_AscensionPersonalBank();
 void AddSC_AscensionWisdomball();
@@ -447,6 +449,8 @@ void Addmod_ascension_compatScripts()
     AddSC_AscensionBankVoucher();
     AddSC_AscensionFeatherOfAncients();
     AddSC_AscensionReaperHaunt();
+    AddSC_AscensionReaperRuin();
+    AddSC_AscensionReaperRedshade();
     AddSC_AscensionReaperTalentProcs();
     AddSC_AscensionPersonalBank();
     AddSC_AscensionWisdomball();

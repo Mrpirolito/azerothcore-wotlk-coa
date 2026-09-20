@@ -39,3 +39,18 @@ DELETE FROM `spell_script_names` WHERE `spell_id` = 524735
   AND `ScriptName` = 'spell_ascension_reaper_redshade';
 INSERT INTO `spell_script_names` (`spell_id`, `ScriptName`) VALUES
 (524735, 'spell_ascension_reaper_redshade');
+
+-- Shudder Scythe does not deal its damage from the button. The rank the player casts, 572382, is
+-- a transform whose aura triggers the damaging rank 801322 every 100 ms, so the proc arrives as a
+-- periodic one and PROC_FLAG_DONE_SPELL_MELEE_DMG_CLASS alone never saw it.
+-- 262160 = that flag | PROC_FLAG_DONE_PERIODIC (0x40000).
+UPDATE `spell_proc` SET `ProcFlags` = 262160 WHERE `SpellId` = 805198;
+
+-- Even with the periodic flag the transform route never marked anything: a spell cast by a
+-- periodic aura tick does not reach the proc system the way a cast does. The damaging rank
+-- applies the mark itself when its caster owns the talent, which covers both the rank cast
+-- directly and the transform a player actually presses.
+DELETE FROM `spell_script_names` WHERE `spell_id` = 801322
+  AND `ScriptName` = 'spell_ascension_reaper_ruin_mark';
+INSERT INTO `spell_script_names` (`spell_id`, `ScriptName`) VALUES
+(801322, 'spell_ascension_reaper_ruin_mark');

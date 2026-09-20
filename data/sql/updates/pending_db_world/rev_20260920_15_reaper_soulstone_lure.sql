@@ -38,7 +38,13 @@ INSERT INTO `spell_proc`
 VALUES
   (561826, 0, 0, 0, 0, 0, 1048848, 3, 2, 0, 0, 0, 0, 100, 0, 0);
 
--- 410144 was the Spirit Link Idol's model, which is not what this is. 408534 is
--- creature\demoncrystal\creature_demoncrystal_03_blue, a blue crystal, which is what the ability
--- places.
-UPDATE `creature_template_model` SET `CreatureDisplayID` = 408534 WHERE `CreatureID` = 557911;
+-- The model has to be one this client actually holds. 408534 points at
+-- creature\demoncrystal\creature_demoncrystal_03_blue.m2, which no archive in the client carries,
+-- so it drew as the missing-model chequerboard. 9832 is the Ash'ari Crystal, the blue crystal of
+-- the Scourge ziggurats: Creature\ZigguratCrystal\ZigguratCrystal.mdx, spawned in the world
+-- already and therefore known to render.
+UPDATE `creature_template_model` SET `CreatureDisplayID` = 9832 WHERE `CreatureID` = 557911;
+
+-- The Ash'ari Crystal is a ziggurat-sized prop; at full scale the lure stood taller than the
+-- player. A third of it reads as something placed on the ground.
+UPDATE `creature_template_model` SET `DisplayScale` = 0.33 WHERE `CreatureID` = 557911;

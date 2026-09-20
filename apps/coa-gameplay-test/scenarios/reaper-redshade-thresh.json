@@ -1,0 +1,23 @@
+{
+ "schema": 1,
+ "name": "Redshade turns Reap into Thresh and then Bloodshatter",
+ "contract": "Redshade 524735 promises that using Reap transforms it into Thresh for 10 seconds, and its buff Thresh (Dummy) 525058 says so on the character. Casting Thresh then leaves Bloodshatter (Dummy) 525299 for the second step. Both dummies are plain SPELL_AURA_DUMMY, so spell_ascension_reaper_redshade_reap is what makes Reap cast the replacement.",
+ "timeout_ms": 120000,
+ "players": [
+  { "id": "reaper", "race": 10, "class": 30, "level": 80 }
+ ],
+ "creatures": [
+  { "id": "enemy", "owner": "reaper", "entry": 1601, "level": 80 }
+ ],
+ "steps": [
+  { "action": "wait", "label": "Let spawn AI and level scaling settle", "ms": 6000 },
+  { "action": "learn", "actor": "reaper", "spell": 573303 },
+  { "action": "learn", "actor": "reaper", "spell": 505170 },
+  { "action": "learn", "actor": "reaper", "spell": 505326 },
+  { "action": "set_aura", "actor": "reaper", "spell": 525058, "stacks": 1 },
+  { "action": "assert", "label": "The Thresh transform is up", "actor": "reaper", "metric": "aura", "spell": 525058, "equals": 1 },
+  { "action": "cast", "actor": "reaper", "spell": 573303, "target": "enemy" },
+  { "action": "assert", "label": "Reap cast Thresh, which left the Bloodshatter step", "actor": "reaper", "metric": "aura", "spell": 525299, "equals": 1, "within_ms": 3000 },
+  { "action": "assert", "label": "The Thresh step is spent", "actor": "reaper", "metric": "aura", "spell": 525058, "equals": 0, "within_ms": 3000 }
+ ]
+}
