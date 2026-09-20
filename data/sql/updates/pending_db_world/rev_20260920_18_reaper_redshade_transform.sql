@@ -5,18 +5,18 @@
 -- it: the buff appeared and the button still said Reap. Casting Thresh then applies
 -- Bloodshatter (Dummy) 525299 for the second step, with the same problem.
 --
--- aura_ascension_reaper_redshade_transform redraws the button on each step, and
--- spell_ascension_reaper_redshade_reap sends the replacement from every rank of Reap, so the
--- right ability goes out whichever spell the client asks for. Not 801327: it is named Reap
--- as well, and its rank reads "Heal" - a self-targeted heal with nothing to do with the
--- strike, so replacing it would have eaten a heal the player asked for.
+-- Both buffs carry Ascension aura 337 with the replacement in EffectMiscValue, so the client
+-- redraws the button by itself. aura_ascension_reaper_redshade_spells is what makes the cast
+-- legal, by owning the two abilities for as long as the talent is taken, and
+-- spell_ascension_reaper_redshade_reap sends the replacement when the client still casts the
+-- rank on the bar. Not 801327: it is named Reap as well, and its rank reads "Heal" - a
+-- self-targeted heal with nothing to do with the strike, so replacing it would have eaten a
+-- heal the player asked for.
 DELETE FROM `spell_script_names` WHERE `ScriptName` IN
   ('spell_ascension_reaper_redshade_reap', 'aura_ascension_reaper_redshade_transform',
    'aura_ascension_reaper_redshade_spells');
 INSERT INTO `spell_script_names` (`spell_id`, `ScriptName`) VALUES
 (524735, 'aura_ascension_reaper_redshade_spells'),
-(525058, 'aura_ascension_reaper_redshade_transform'),
-(525299, 'aura_ascension_reaper_redshade_transform'),
 (354319, 'spell_ascension_reaper_redshade_reap'),
 (500357, 'spell_ascension_reaper_redshade_reap'),
 (504056, 'spell_ascension_reaper_redshade_reap'),
