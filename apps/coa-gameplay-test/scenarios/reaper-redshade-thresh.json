@@ -190,6 +190,15 @@
       "equals": 0
     },
     {
+      "action": "assert",
+      "label": "Bloodshatter grants the next Reliquary cooldown reduction",
+      "actor": "reaper",
+      "metric": "aura",
+      "spell": 525304,
+      "equals": 1,
+      "within_ms": 2000
+    },
+    {
       "action": "wait",
       "label": "Let the Bloodshatter window expire",
       "ms": 11000

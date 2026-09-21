@@ -39,7 +39,7 @@ INSERT INTO `spell_proc`
    `SpellFamilyMask2`, `ProcFlags`, `SpellTypeMask`, `SpellPhaseMask`, `HitMask`, `AttributesMask`,
    `DisableEffectsMask`, `ProcsPerMinute`, `Chance`, `Cooldown`, `Charges`)
 VALUES
-  (561826, 0, 0, 0, 0, 0, 1048576, 1, 2, 0, 0, 0, 0, 100, 0, 0);
+  (561826, 0, 0, 0, 0, 0, 1048576, 0, 0, 0, 0, 0, 0, 100, 0, 0);
 
 -- The model has to be one this client actually holds. 408534 points at
 -- creature\demoncrystal\creature_demoncrystal_03_blue.m2, which no archive in the client carries,

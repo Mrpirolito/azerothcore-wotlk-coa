@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "name": "Soulstone Lure stays planted without replacing the Reaper pet",
-  "contract": "Soulstone Lure 561376 summons creature 557911 as an ordinary timed summon using property 64, not a guardian using property 61. Its scoped summon AI adopts the Reaper faction and supplies aura 561826. After the Reaper moves away the lure remains at the destination.",
+  "contract": "Soulstone Lure 561376 summons creature 557911 as an ordinary timed summon using property 64, not a guardian using property 61. Its scoped summon AI adopts the Reaper faction and supplies aura 561826. After the Reaper moves away the lure remains at the destination. The caster enters Underwalk 800797 to satisfy the required stance.",
   "players": [
     {
       "id": "reaper",
@@ -21,6 +21,28 @@
     {
       "action": "wait",
       "ms": 3000
+    },
+    {
+      "action": "learn",
+      "actor": "reaper",
+      "spell": 800797
+    },
+    {
+      "action": "cast",
+      "actor": "reaper",
+      "spell": 800797
+    },
+    {
+      "action": "assert",
+      "actor": "reaper",
+      "metric": "aura",
+      "spell": 800797,
+      "equals": 1,
+      "within_ms": 2000
+    },
+    {
+      "action": "wait",
+      "ms": 1600
     },
     {
       "action": "learn",
