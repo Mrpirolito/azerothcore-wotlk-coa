@@ -8,17 +8,22 @@
 -- player leaves behind - Spirit Link Idol (522106) and Cauldron Hidden Periodic (506011): faction
 -- 35 so nothing attacks it by faction alone, type 11 (not specified), no movement, and a level
 -- band that keeps it out of level scaling.
-DELETE FROM `creature_template_model` WHERE `CreatureID` = 557911;
-DELETE FROM `creature_template` WHERE `entry` = 557911;
 INSERT INTO `creature_template`
   (`entry`, `name`, `subname`, `gossip_menu_id`, `minlevel`, `maxlevel`, `faction`, `npcflag`,
    `speed_walk`, `speed_run`, `unit_class`, `unit_flags`, `type`, `AIName`, `MovementType`,
    `flags_extra`, `ScriptName`)
 VALUES
-  (557911, 'Soulstone Lure', NULL, 0, 80, 80, 35, 0, 1, 1.14286, 1, 0, 11, '', 0, 0, '');
+  (557911, 'Soulstone Lure', NULL, 0, 80, 80, 35, 0, 1, 1.14286, 1, 0, 11, '', 0, 0, 'npc_ascension_reaper_soulstone_lure')
+ON DUPLICATE KEY UPDATE
+  `name` = VALUES(`name`), `minlevel` = VALUES(`minlevel`), `maxlevel` = VALUES(`maxlevel`),
+  `faction` = VALUES(`faction`), `npcflag` = VALUES(`npcflag`), `unit_class` = VALUES(`unit_class`),
+  `unit_flags` = VALUES(`unit_flags`), `type` = VALUES(`type`), `AIName` = VALUES(`AIName`),
+  `MovementType` = VALUES(`MovementType`), `flags_extra` = VALUES(`flags_extra`),
+  `ScriptName` = VALUES(`ScriptName`);
 
 -- 410144 is the Spirit Link Idol's model: a small planted object that reads as something left on
 -- the ground rather than a creature standing on it.
+DELETE FROM `creature_template_model` WHERE `CreatureID` = 557911;
 INSERT INTO `creature_template_model` (`CreatureID`, `Idx`, `CreatureDisplayID`, `DisplayScale`, `Probability`) VALUES
 (557911, 0, 410144, 1, 1);
 
@@ -27,16 +32,14 @@ INSERT INTO `creature_template_model` (`CreatureID`, `Idx`, `CreatureDisplayID`,
 -- SPELL_AURA_PROC_TRIGGER_SPELL for the Fear 561827, and its record has ProcTypeMask 0, so the
 -- aura is built with no proc flags and nothing reaches the handler.
 --
--- ProcFlags 1048848 = PROC_FLAG_TAKEN_MELEE_AUTO_ATTACK (0x100000) |
--- PROC_FLAG_TAKEN_SPELL_MELEE_DMG_CLASS (0x200) | PROC_FLAG_TAKEN_SPELL_NONE_DMG_CLASS_NEG
--- (0x40) - the three ways an enemy can attack the lure.
+-- PROC_FLAG_TAKEN_DAMAGE triggers the fear when the lure takes damage.
 DELETE FROM `spell_proc` WHERE `SpellId` = 561826;
 INSERT INTO `spell_proc`
   (`SpellId`, `SchoolMask`, `SpellFamilyName`, `SpellFamilyMask0`, `SpellFamilyMask1`,
    `SpellFamilyMask2`, `ProcFlags`, `SpellTypeMask`, `SpellPhaseMask`, `HitMask`, `AttributesMask`,
    `DisableEffectsMask`, `ProcsPerMinute`, `Chance`, `Cooldown`, `Charges`)
 VALUES
-  (561826, 0, 0, 0, 0, 0, 1048848, 3, 2, 0, 0, 0, 0, 100, 0, 0);
+  (561826, 0, 0, 0, 0, 0, 1048576, 1, 2, 0, 0, 0, 0, 100, 0, 0);
 
 -- The model has to be one this client actually holds. 408534 points at
 -- creature\demoncrystal\creature_demoncrystal_03_blue.m2, which no archive in the client carries,

@@ -224,6 +224,7 @@ void AddSC_AscensionBankVoucher();
 void AddSC_AscensionFeatherOfAncients();
 void AddSC_AscensionReaperRuin();
 void AddSC_AscensionReaperRedshade();
+void AddSC_AscensionReaperSpellContracts();
 void AddSC_AscensionReaperTalentProcs();
 void AddSC_AscensionPersonalBank();
 void AddSC_AscensionWisdomball();
@@ -449,6 +450,7 @@ void Addmod_ascension_compatScripts()
     AddSC_AscensionFeatherOfAncients();
     AddSC_AscensionReaperRuin();
     AddSC_AscensionReaperRedshade();
+    AddSC_AscensionReaperSpellContracts();
     AddSC_AscensionReaperTalentProcs();
     AddSC_AscensionPersonalBank();
     AddSC_AscensionWisdomball();

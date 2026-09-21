@@ -1,31 +1,277 @@
 {
- "schema": 1,
- "name": "Redshade turns Reap into Thresh and then Bloodshatter",
- "contract": "Redshade 524735 promises that using Reap transforms it into Thresh for 10 seconds, and its buff Thresh (Dummy) 525058 says so on the character. Casting Thresh then leaves Bloodshatter (Dummy) 525299 for the second step. Both are plain SPELL_AURA_DUMMY, so the module answers them: aura_ascension_reaper_redshade_spells owns the two transformed abilities for as long as the talent is taken, aura_ascension_reaper_redshade_transform moves the button with SMSG_SUPERCEDED_SPELL, and spell_ascension_reaper_redshade_reap sends the replacement when the client still casts the rank on the bar. The spellbook copy is what makes the cast legal at all: CMSG_CAST_SPELL is refused for a spell the caster does not have active, so a redrawn button alone spent a global cooldown and did nothing. Both transforms also read Generates 1 Soul Fragment and generating Runic Power, and neither record performs either, so ResourceGainRules pays them the way it pays every rank of Reap. The second step is checked by the buff it leaves and by Bloodshatter being castable, not by casting it: it strikes a cone in front of the caster, and whether the fixture's enemy stands in that cone is a question about the spawn rather than the transform.",
- "timeout_ms": 120000,
- "players": [
-  { "id": "reaper", "race": 10, "class": 30, "level": 80 }
- ],
- "creatures": [
-  { "id": "enemy", "owner": "reaper", "entry": 1601, "level": 80 }
- ],
- "steps": [
-  { "action": "wait", "label": "Let spawn AI and level scaling settle", "ms": 6000 },
-  { "action": "learn", "actor": "reaper", "spell": 573303 },
-  { "action": "set_action_button", "actor": "reaper", "spell": 573303, "button": 1 },
-  { "action": "assert", "label": "Thresh is not in the spellbook without the talent", "actor": "reaper", "metric": "knows_spell", "spell": 505170, "equals": 0 },
-  { "action": "learn", "actor": "reaper", "spell": 524735 },
-  { "action": "assert", "label": "The talent owns Thresh", "actor": "reaper", "metric": "knows_spell", "spell": 505170, "equals": 1, "within_ms": 3000 },
-  { "action": "assert", "label": "The talent owns Bloodshatter", "actor": "reaper", "metric": "knows_spell", "spell": 505326, "equals": 1 },
-  { "action": "assert", "label": "Reap is on the bar", "actor": "reaper", "metric": "action_button", "button": 1, "equals": 573303 },
-  { "action": "set_aura", "actor": "reaper", "spell": 525058, "stacks": 1 },
-  { "action": "assert", "label": "The Thresh step is up", "actor": "reaper", "metric": "aura", "spell": 525058, "equals": 1 },
-  { "action": "assert", "label": "The transform redraws the bar without rewriting it: the saved button is still Reap", "actor": "reaper", "metric": "action_button", "button": 1, "equals": 573303 },
-  { "action": "cast", "actor": "reaper", "spell": 573303, "target": "enemy" },
-  { "action": "assert", "label": "Reap sent Thresh, which left the Bloodshatter step", "actor": "reaper", "metric": "aura", "spell": 525299, "equals": 1, "within_ms": 3000 },
-  { "action": "assert", "label": "The Thresh step is spent", "actor": "reaper", "metric": "aura", "spell": 525058, "equals": 0, "within_ms": 3000 },
-  { "action": "assert", "label": "Thresh generated a Soul Fragment", "actor": "reaper", "metric": "aura_stacks", "spell": 805077, "min": 1, "within_ms": 3000 },
-  { "action": "assert", "label": "Thresh generated Runic Power", "actor": "reaper", "metric": "power", "power": 6, "min": 1, "within_ms": 3000 },
-  { "action": "assert", "label": "Bloodshatter is castable in its own right, which is what the second step needs", "actor": "reaper", "metric": "knows_spell", "spell": 505326, "equals": 1 }
- ]
+  "schema": 1,
+  "name": "Redshade turns Reap into Thresh and then Bloodshatter",
+  "contract": "Redshade owns temporary spellbook entries, but native casts of Thresh and Bloodshatter require their respective transform auras. Bloodshatter takes priority while both auras exist. Expiry and talent removal revoke access. Reap forwarding grants the intended resources without rewriting saved action buttons.",
+  "timeout_ms": 120000,
+  "players": [
+    {
+      "id": "reaper",
+      "race": 10,
+      "class": 30,
+      "level": 80
+    }
+  ],
+  "creatures": [
+    {
+      "id": "enemy",
+      "owner": "reaper",
+      "entry": 1601,
+      "level": 80
+    }
+  ],
+  "steps": [
+    {
+      "action": "wait",
+      "label": "Let spawn AI and level scaling settle",
+      "ms": 6000
+    },
+    {
+      "action": "learn",
+      "actor": "reaper",
+      "spell": 573303
+    },
+    {
+      "action": "set_action_button",
+      "actor": "reaper",
+      "spell": 573303,
+      "button": 1
+    },
+    {
+      "action": "assert",
+      "label": "Thresh is not in the spellbook without the talent",
+      "actor": "reaper",
+      "metric": "knows_spell",
+      "spell": 505170,
+      "equals": 0
+    },
+    {
+      "action": "learn",
+      "actor": "reaper",
+      "spell": 524735
+    },
+    {
+      "action": "assert",
+      "label": "The talent owns Thresh",
+      "actor": "reaper",
+      "metric": "knows_spell",
+      "spell": 505170,
+      "equals": 1,
+      "within_ms": 3000
+    },
+    {
+      "action": "assert",
+      "label": "The talent owns Bloodshatter",
+      "actor": "reaper",
+      "metric": "knows_spell",
+      "spell": 505326,
+      "equals": 1
+    },
+    {
+      "action": "cast",
+      "actor": "reaper",
+      "spell": 505170,
+      "target": "enemy"
+    },
+    {
+      "action": "assert",
+      "actor": "reaper",
+      "metric": "cast_failure",
+      "spell": 505170,
+      "equals": 22
+    },
+    {
+      "action": "cast",
+      "actor": "reaper",
+      "spell": 505326,
+      "target": "enemy"
+    },
+    {
+      "action": "assert",
+      "actor": "reaper",
+      "metric": "cast_failure",
+      "spell": 505326,
+      "equals": 22
+    },
+    {
+      "action": "assert",
+      "label": "Reap is on the bar",
+      "actor": "reaper",
+      "metric": "action_button",
+      "button": 1,
+      "equals": 573303
+    },
+    {
+      "action": "set_aura",
+      "actor": "reaper",
+      "spell": 525058,
+      "stacks": 1
+    },
+    {
+      "action": "assert",
+      "label": "The Thresh step is up",
+      "actor": "reaper",
+      "metric": "aura",
+      "spell": 525058,
+      "equals": 1
+    },
+    {
+      "action": "assert",
+      "label": "The transform redraws the bar without rewriting it: the saved button is still Reap",
+      "actor": "reaper",
+      "metric": "action_button",
+      "button": 1,
+      "equals": 573303
+    },
+    {
+      "action": "cast",
+      "actor": "reaper",
+      "spell": 573303,
+      "target": "enemy"
+    },
+    {
+      "action": "assert",
+      "label": "Reap sent Thresh, which left the Bloodshatter step",
+      "actor": "reaper",
+      "metric": "aura",
+      "spell": 525299,
+      "equals": 1,
+      "within_ms": 3000
+    },
+    {
+      "action": "assert",
+      "label": "The Thresh step is spent",
+      "actor": "reaper",
+      "metric": "aura",
+      "spell": 525058,
+      "equals": 0,
+      "within_ms": 3000
+    },
+    {
+      "action": "assert",
+      "label": "Thresh generated a Soul Fragment",
+      "actor": "reaper",
+      "metric": "aura_stacks",
+      "spell": 805077,
+      "min": 1,
+      "within_ms": 3000
+    },
+    {
+      "action": "assert",
+      "label": "Thresh generated Runic Power",
+      "actor": "reaper",
+      "metric": "power",
+      "power": 6,
+      "min": 1,
+      "within_ms": 3000
+    },
+    {
+      "action": "assert",
+      "label": "Bloodshatter is castable in its own right, which is what the second step needs",
+      "actor": "reaper",
+      "metric": "knows_spell",
+      "spell": 505326,
+      "equals": 1
+    },
+    {
+      "action": "wait",
+      "ms": 1600
+    },
+    {
+      "action": "cast",
+      "actor": "reaper",
+      "spell": 505326,
+      "target": "enemy"
+    },
+    {
+      "action": "assert",
+      "actor": "reaper",
+      "metric": "cast_failure",
+      "spell": 505326,
+      "equals": 0
+    },
+    {
+      "action": "wait",
+      "label": "Let the Bloodshatter window expire",
+      "ms": 11000
+    },
+    {
+      "action": "assert",
+      "actor": "reaper",
+      "metric": "aura",
+      "spell": 525299,
+      "equals": 0
+    },
+    {
+      "action": "cast",
+      "actor": "reaper",
+      "spell": 505326,
+      "target": "enemy"
+    },
+    {
+      "action": "assert",
+      "actor": "reaper",
+      "metric": "cast_failure",
+      "spell": 505326,
+      "equals": 22
+    },
+    {
+      "action": "set_aura",
+      "actor": "reaper",
+      "spell": 525058,
+      "stacks": 1
+    },
+    {
+      "action": "set_aura",
+      "actor": "reaper",
+      "spell": 525299,
+      "stacks": 1
+    },
+    {
+      "action": "cast",
+      "actor": "reaper",
+      "spell": 505170,
+      "target": "enemy"
+    },
+    {
+      "action": "assert",
+      "actor": "reaper",
+      "metric": "cast_failure",
+      "spell": 505170,
+      "equals": 22
+    },
+    {
+      "action": "unlearn",
+      "actor": "reaper",
+      "spell": 524735,
+      "all_specs": true
+    },
+    {
+      "action": "assert",
+      "actor": "reaper",
+      "metric": "aura",
+      "spell": 525058,
+      "equals": 0
+    },
+    {
+      "action": "assert",
+      "actor": "reaper",
+      "metric": "aura",
+      "spell": 525299,
+      "equals": 0
+    },
+    {
+      "action": "assert",
+      "actor": "reaper",
+      "metric": "knows_spell",
+      "spell": 505170,
+      "equals": 0
+    },
+    {
+      "action": "assert",
+      "actor": "reaper",
+      "metric": "knows_spell",
+      "spell": 505326,
+      "equals": 0
+    }
+  ]
 }

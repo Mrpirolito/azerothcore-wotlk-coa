@@ -79,6 +79,8 @@ class aura_ascension_reaper_redshade_spells : public AuraScript
         if (!player)
             return;
 
+        player->RemoveAurasDueToSpell(SPELL_THRESH_DUMMY);
+        player->RemoveAurasDueToSpell(SPELL_BLOODSHATTER_DUMMY);
         for (uint32 spellId : { SPELL_THRESH, SPELL_BLOODSHATTER })
             player->removeSpell(spellId, SPEC_MASK_ALL, true);
     }
@@ -109,7 +111,7 @@ class aura_ascension_reaper_redshade_transform : public AuraScript
     void Apply(AuraEffect const*, AuraEffectHandleModes)
     {
         if (Player* player = GetTarget()->ToPlayer())
-            SendTransformedBar(player, Replacement());
+            SendTransformedBar(player, player->HasAura(SPELL_BLOODSHATTER_DUMMY) ? SPELL_BLOODSHATTER : Replacement());
     }
 
     void Remove(AuraEffect const*, AuraEffectHandleModes)
@@ -121,9 +123,9 @@ class aura_ascension_reaper_redshade_transform : public AuraScript
         uint32 const other = GetId() == SPELL_BLOODSHATTER_DUMMY ? SPELL_THRESH_DUMMY
             : SPELL_BLOODSHATTER_DUMMY;
         if (player->HasAura(other))
-            return;
-
-        player->SendActionButtons(1);
+            SendTransformedBar(player, other == SPELL_BLOODSHATTER_DUMMY ? SPELL_BLOODSHATTER : SPELL_THRESH);
+        else
+            player->SendActionButtons(1);
     }
 
     void Register() override
