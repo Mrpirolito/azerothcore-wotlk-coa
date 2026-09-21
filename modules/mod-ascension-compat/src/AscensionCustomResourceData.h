@@ -464,9 +464,6 @@ struct NativePowerGainRule
     std::uint32_t ForbiddenAuraSpellId = 0;
 };
 
-// Rage and Runic Power are represented internally in tenths. These Reaper
-// abilities describe fixed gains, but their public DBC records omit the
-// energize effect that Ascension's private server applies.
 inline constexpr std::array<NativePowerGainRule, 16> NativePowerGainRules =
 {{
     {19, 0, 0, 3, 10, ResourceGainEvent::PeriodicDamageTick, 301253},
@@ -476,18 +473,6 @@ inline constexpr std::array<NativePowerGainRule, 16> NativePowerGainRules =
         ResourceGainEvent::FirstSuccessfulHostileTarget, 704680},
     {23, 707911, 707911, 6, 200,
         ResourceGainEvent::FirstSuccessfulHostileTarget, 704680},
-    // Scythe Rush (500359) deliberately keeps no row here. Its hit adapter
-    // casts helper 805339, whose own energize effect grants the same 150
-    // tenths and logs the SPELL_ENERGIZE event this table's ModifyPower never
-    // produced. A row would stack a second silent grant on top of it.
-    // Soulrend and Doomrend both grant 20 Runic Power, 200 in the tenths this
-    // table uses. The tooltips say only "generates Runic Power" and the retained
-    // live logs carry no energize event for either - the gain was applied
-    // silently - so the amount comes from the realm this was written for rather
-    // than from a log. It replaces the 150 placeholder Soulrend carried.
-    // 573320 is Soulrend's armor-debuff aura and 560361 and 800173 are
-    // Doomrend's healing-absorb and heal halves; all three are deliberately
-    // outside the ranges.
     {30, 572341, 572342, 6, 200,
         ResourceGainEvent::FirstSuccessfulHostileTarget},
     {30, 573316, 573319, 6, 200,
