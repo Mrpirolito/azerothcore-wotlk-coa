@@ -30,8 +30,15 @@ enum ReaperTalentSpells : uint32
     SPELL_PAINBRINGER = 680995,
     SPELL_PAINBRINGER_APPLY = 520533,
     SPELL_PAINBRINGER_EXTEND = 520877,
-    SPELL_MASOCHISTIC_RAGE = 570097
+    SPELL_MASOCHISTIC_RAGE = 570097,
+    SPELL_BLOOD_FRENZY_TALENT = 707899,
+    SPELL_BLOOD_FRENZY = 803039,
+    SPELL_HARVEST_TIME_LOW = 704188,
+    SPELL_HARVEST_TIME = 803995
 };
+
+/// The distance the Blood Frenzy tooltip states: "with an enemy targeted within 20 yds of you".
+constexpr float BloodFrenzyRange = 20.0f;
 
 /// Milliseconds carried by a Painbringer child's first effect: 5000 to apply, 3000 to extend.
 int32 PainbringerMilliseconds(uint32 spellId)
@@ -187,6 +194,52 @@ class aura_ascension_jailers_call : public AuraScript
     }
 };
 
+// Blood Frenzy: casting Harvest Time with an enemy targeted within 20 yds unleashes it.
+//
+// Harvest Time is a buff the Reaper puts on themselves, so the event the core raises names
+// the caster as both actor and action target, while the spell this has to cast - 803039,
+// a Shadow damage-over-time - is written for an enemy. Handing the proc its own target is
+// the whole of this script: the enemy the player has selected, if it is one they may attack
+// and it is inside the range the tooltip states.
+class aura_ascension_reaper_blood_frenzy : public AuraScript
+{
+    PrepareAuraScript(aura_ascension_reaper_blood_frenzy);
+
+    Unit* FrenzyTarget() const
+    {
+        Player* player = GetTarget()->ToPlayer();
+        if (!player || !player->IsAlive())
+            return nullptr;
+        Unit* target = player->GetSelectedUnit();
+        if (!target || target == player || !target->IsAlive() ||
+            !player->IsValidAttackTarget(target) ||
+            !player->IsWithinDistInMap(target, BloodFrenzyRange))
+            return nullptr;
+        return target;
+    }
+
+    bool CheckProc(ProcEventInfo& event)
+    {
+        SpellInfo const* spell = event.GetSpellInfo();
+        return spell && (spell->Id == SPELL_HARVEST_TIME || spell->Id == SPELL_HARVEST_TIME_LOW) &&
+            event.GetActor() == GetTarget() && FrenzyTarget() != nullptr;
+    }
+
+    void Proc(AuraEffect const* effect, ProcEventInfo&)
+    {
+        PreventDefaultAction();
+        if (Unit* target = FrenzyTarget())
+            GetTarget()->CastSpell(target, SPELL_BLOOD_FRENZY, true, nullptr, effect);
+    }
+
+    void Register() override
+    {
+        DoCheckProc += AuraCheckProcFn(aura_ascension_reaper_blood_frenzy::CheckProc);
+        OnEffectProc += AuraEffectProcFn(aura_ascension_reaper_blood_frenzy::Proc, EFFECT_0,
+            SPELL_AURA_PROC_TRIGGER_SPELL);
+    }
+};
+
 class reaper_talent_events : public UnitScript
 {
 public:
@@ -240,5 +293,6 @@ void AddSC_AscensionReaperTalents()
     RegisterSpellScript(spell_ascension_soul_capture);
     RegisterSpellScript(aura_ascension_harvester);
     RegisterSpellScript(aura_ascension_jailers_call);
+    RegisterSpellScript(aura_ascension_reaper_blood_frenzy);
     new reaper_talent_events();
 }

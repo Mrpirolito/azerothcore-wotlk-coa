@@ -34,7 +34,7 @@ struct Rule
 };
 
 // The spell ids are every rank of the ability the tooltip names.
-inline constexpr std::array<Rule, 31> Rules =
+inline constexpr std::array<Rule, 30> Rules =
 {{
     // Dealing direct damage
     {300565, {{0}}},
@@ -90,8 +90,6 @@ inline constexpr std::array<Rule, 31> Rules =
     {706795, {{0}}},
     // Direct damage critical strikes
     {707707, {{0}}},
-    // Casting Harvest Time
-    {707899, {{704188, 803995}}},
     // Striking at least 1 enemy with Soulslam
     {712484, {{504014, 504685}}},
     // Damage dealt with Reap, Dreadwake and Soul Strike
