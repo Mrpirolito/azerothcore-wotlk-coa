@@ -1129,8 +1129,6 @@ private:
             Require(sSpellMgr->GetSpellInfo(spell) != nullptr, "Unknown spell in metric");
         if (metric == "knows_spell")
             return player->HasSpell(spell);
-        // What the client is told a button holds. A transform that only changes the button has
-        // nothing else to show for itself.
         if (metric == "action_button")
         {
             uint8 button = uint8(step.get<uint32>("button"));

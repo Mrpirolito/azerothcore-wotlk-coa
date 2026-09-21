@@ -37,18 +37,14 @@ enum ReaperTalentSpells : uint32
     SPELL_HARVEST_TIME = 803995
 };
 
-/// The distance the Blood Frenzy tooltip states: "with an enemy targeted within 20 yds of you".
 constexpr float BloodFrenzyRange = 20.0f;
 
-/// Milliseconds carried by a Painbringer child's first effect: 5000 to apply, 3000 to extend.
 int32 PainbringerMilliseconds(uint32 spellId)
 {
     SpellInfo const* info = sSpellMgr->GetSpellInfo(spellId);
     return info ? info->Effects[EFFECT_0].CalcValue() : 0;
 }
 
-/// Painbringer: generating a Reaped Soul has the talent's own chance to enrage the Reaper, or
-/// to lengthen the rage already burning.
 void ApplyPainbringer(Player* player)
 {
     SpellInfo const* talent = sSpellMgr->GetSpellInfo(SPELL_PAINBRINGER);
@@ -194,13 +190,6 @@ class aura_ascension_jailers_call : public AuraScript
     }
 };
 
-// Blood Frenzy: casting Harvest Time with an enemy targeted within 20 yds unleashes it.
-//
-// Harvest Time is a buff the Reaper puts on themselves, so the event the core raises names
-// the caster as both actor and action target, while the spell this has to cast - 803039,
-// a Shadow damage-over-time - is written for an enemy. Handing the proc its own target is
-// the whole of this script: the enemy the player has selected, if it is one they may attack
-// and it is inside the range the tooltip states.
 class aura_ascension_reaper_blood_frenzy : public AuraScript
 {
     PrepareAuraScript(aura_ascension_reaper_blood_frenzy);

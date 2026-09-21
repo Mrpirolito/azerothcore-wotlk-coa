@@ -6151,11 +6151,6 @@ class spell_ascension_jailers_bargain : public AuraScript
     }
 };
 
-// Extinction (573039) rolls its own chance.
-//
-// The tooltip promises 5% per direct Physical hit, "increased by 10% for each Reaped Soul active".
-// A SPELL_AURA_PROC_TRIGGER_SPELL can only carry the flat chance, so spell_proc hands this script
-// every qualifying hit at 100% and the real roll happens here.
 class spell_ascension_reaper_extinction : public AuraScript
 {
     PrepareAuraScript(spell_ascension_reaper_extinction);
@@ -6169,7 +6164,7 @@ class spell_ascension_reaper_extinction : public AuraScript
             GetUnitOwner() && GetUnitOwner()->IsPlayer();
     }
 
-    bool CheckProc(ProcEventInfo& /*eventInfo*/)
+    bool CheckProc(ProcEventInfo&)
     {
         Unit* owner = GetUnitOwner();
         if (!owner)
@@ -6188,12 +6183,6 @@ class spell_ascension_reaper_extinction : public AuraScript
     }
 };
 
-// Extinction's buff (560414) comes off when the free Slaughter is cast.
-//
-// The buff carries its own SPELL_AURA_PROC_TRIGGER_SPELL for the Stack Remover 561113, with the
-// same empty ProcTypeMask as the talent, so the free cast went out and the buff stayed. spell_proc
-// supplies the flags; this narrows them to the seven Slaughter ranks, so anything else the Reaper
-// casts leaves the buff alone.
 class spell_ascension_reaper_extinction_buff : public AuraScript
 {
     PrepareAuraScript(spell_ascension_reaper_extinction_buff);
@@ -6219,11 +6208,6 @@ class spell_ascension_reaper_extinction_buff : public AuraScript
     }
 };
 
-// Ruin (805198) answers only to Shudder Scythe.
-//
-// Its proc trigger has the same empty ProcTypeMask every one of these talents carries, so
-// spell_proc supplies the flags and this decides which spell qualifies: a proc flag can say
-// "a melee ability landed" but not which ability it was.
 class spell_ascension_reaper_ruin : public AuraScript
 {
     PrepareAuraScript(spell_ascension_reaper_ruin);
@@ -6249,8 +6233,6 @@ class spell_ascension_reaper_ruin : public AuraScript
     }
 };
 
-// Redshade (524735) answers only to Reap, and to the cast rather than the hit: the tooltip says
-// "Using Reap", and the transform is meant to be up for the next ability either way.
 class spell_ascension_reaper_redshade : public AuraScript
 {
     PrepareAuraScript(spell_ascension_reaper_redshade);

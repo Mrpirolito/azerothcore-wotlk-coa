@@ -1,16 +1,5 @@
 /* Copyright (C) 2016+ AzerothCore, GNU AGPL v3. */
 
-// One script for every Reaper talent in AscensionReaperTalentProcs.h.
-//
-// Their spell_proc rows carry the flags the DBC records omit and a chance of 100, so every
-// qualifying event arrives here and this decides whether it was the right spell. A proc flag
-// can say "a melee ability landed"; it cannot say which ability, and these talents have no
-// family mask to select with.
-//
-// A rule with an empty spell list accepts whatever its flags and hit mask already allow -
-// that is how "avoiding attacks" and "your successful parries and dodges" work, where the
-// event is the dodge itself rather than a named ability.
-
 #include "AscensionReaperTalentProcs.h"
 #include "ScriptMgr.h"
 #include "SpellAuras.h"
