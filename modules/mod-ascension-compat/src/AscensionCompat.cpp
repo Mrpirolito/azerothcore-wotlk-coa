@@ -107,7 +107,6 @@
 using namespace Acore::ChatCommands;
 
 namespace {
-constexpr uint32 SPELL_REAPER_HARVESTER = 92145;
 constexpr uint16 CMSG_ANTICHEAT_ALERT = 0x051F;
 constexpr uint16 CMSG_CUSTOM_ASCENSION_POINT_SPEND_REQUEST = 0x0523;
 constexpr uint16 CMSG_CREATURE_QUERY_BULK = 0x061A;
@@ -646,20 +645,7 @@ public:
         }
 
     ReconcileRunemasterFists(player, activeSpec);
-    if (!automaticProgression && player->getClass() == CLASS_REAPER && !player->HasSpell(SPELL_REAPER_HARVESTER) &&
-        sSpellMgr->GetSpellInfo(SPELL_REAPER_HARVESTER))
-    {
-      auto const& entries = AscensionCompatData::CoATalentEntries;
-      auto harvester = std::find_if(entries.begin(), entries.end(), [](auto const& entry)
-          { return entry.SpellCount && entry.SpellIds[0] == SPELL_REAPER_HARVESTER; });
-      if (harvester != entries.end() && CanGrantAutomaticEntry(player, *harvester, activeSpec))
-      {
-        player->learnSpell(SPELL_REAPER_HARVESTER, false);
-        ++learned;
-      }
-    }
-    if (automaticProgression)
-      learned += SynchronizeAutomaticTalents(player, GetActiveSpecialization(player));
+    learned += SynchronizeAutomaticTalents(player, GetActiveSpecialization(player));
     for (AscensionProgression::Rank const& rank : AscensionProgression::Ranks)
     {
         if (!automaticProgression || rank.ClassId != player->getClass() ||

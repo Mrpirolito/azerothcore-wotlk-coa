@@ -222,7 +222,6 @@ void AddSC_AscensionChronomancerMovement();
 void AddSC_AscensionAdventurerCache();
 void AddSC_AscensionBankVoucher();
 void AddSC_AscensionFeatherOfAncients();
-void AddSC_AscensionReaperHaunt();
 void AddSC_AscensionReaperRuin();
 void AddSC_AscensionReaperRedshade();
 void AddSC_AscensionReaperTalentProcs();
@@ -448,7 +447,6 @@ void Addmod_ascension_compatScripts()
     AddSC_AscensionAdventurerCache();
     AddSC_AscensionBankVoucher();
     AddSC_AscensionFeatherOfAncients();
-    AddSC_AscensionReaperHaunt();
     AddSC_AscensionReaperRuin();
     AddSC_AscensionReaperRedshade();
     AddSC_AscensionReaperTalentProcs();
