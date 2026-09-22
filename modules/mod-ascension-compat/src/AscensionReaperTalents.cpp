@@ -38,7 +38,13 @@ enum ReaperTalentSpells : uint32
     SPELL_SOUL_HARVEST_TALENT = 504012,
     SPELL_SOUL_HARVEST = 573050,
     SPELL_SPIRIT_CULLING = 301986,
-    SPELL_SPECTRAL_SCYTHE = 500576
+    SPELL_SPECTRAL_SCYTHE = 500576,
+    SPELL_DAMNED = 706786,
+    SPELL_DAMNED_HASTE = 560420,
+    SPELL_PURGATORY = 504046,
+    SPELL_PURGATORY_DAMAGE = 504047,
+    SPELL_ESSENCE_INVIGORATION = 805186,
+    SPELL_ESSENCE_INVIGORATION_HEAL = 805187
 };
 
 Unit* HostileTargetInRange(Player* player, uint32 spellId)
@@ -116,6 +122,12 @@ void ApplyHarvestedSoulTalents(Player* player)
     ApplyPainbringer(player);
     ApplySoulHarvest(player);
     ApplySpiritCulling(player);
+}
+
+void CastTalentTrigger(Player* player, uint32 talentId, uint32 triggerId)
+{
+    if (RollTalent(player, talentId))
+        player->CastSpell(player, triggerId, true);
 }
 
 class spell_ascension_soul_capture : public SpellScript
@@ -314,6 +326,23 @@ bool HandleAscensionReaperResource(Player* player, uint32 spellId, int32 amount)
         ApplyHarvestedSoulTalents(player);
     }
     return true;
+}
+
+void ApplyAscensionReaperSoulInfusionGained(Player* player)
+{
+    if (!player || player->getClass() != CLASS_REAPER || !player->IsAlive())
+        return;
+
+    CastTalentTrigger(player, SPELL_DAMNED, SPELL_DAMNED_HASTE);
+    CastTalentTrigger(player, SPELL_PURGATORY, SPELL_PURGATORY_DAMAGE);
+}
+
+void ApplyAscensionReaperSoulInfusionSpent(Player* player)
+{
+    if (!player || player->getClass() != CLASS_REAPER || !player->IsAlive())
+        return;
+
+    CastTalentTrigger(player, SPELL_ESSENCE_INVIGORATION, SPELL_ESSENCE_INVIGORATION_HEAL);
 }
 
 void AddSC_AscensionReaperTalents()
