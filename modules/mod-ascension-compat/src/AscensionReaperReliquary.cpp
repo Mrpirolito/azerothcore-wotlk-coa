@@ -27,6 +27,7 @@ public:
             return true;
 
         _caster->CastSpell(_caster, SPELL_ATTACK_BOLTS[_index], true);
+        _caster->RemoveAurasDueToSpell(SPELL_VISUAL_BOLTS[_index]);
 
         if (Aura* stored = _caster->GetAura(SPELL_STORED_BOLTS, _caster->GetGUID()))
             stored->ModStackAmount(-1);
