@@ -98,4 +98,3 @@ INSERT IGNORE INTO `item_template` (`entry`, `class`, `subclass`, `SoundOverride
 (560574, 15, 5, -1, 'Emberdeep Minecart', 171093, 4, 1, 0, -1, -1, 1, 1, 1, 4, 0, 12340),
 (560575, 15, 5, -1, 'Titan-Delver Minecart', 171094, 4, 1, 0, -1, -1, 1, 1, 1, 4, 0, 12340),
 (2977352, 15, 0, -1, 'Darkmoon Harlequin''s Bells (Soulbound)', 61898, 6, 1, 0, -1, -1, 1, 1, 1, 2, 0, 12340);
-
