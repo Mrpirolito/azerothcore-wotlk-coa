@@ -23,7 +23,6 @@ public:
         if (!_caster->IsAlive())
             return true;
 
-        _caster->RemoveAurasDueToSpell(SPELL_VISUAL_BOLTS[_index], _caster->GetGUID());
         _caster->CastSpell(_caster, SPELL_ATTACK_BOLTS[_index], true);
 
         if (++_index < std::size(SPELL_ATTACK_BOLTS))
