@@ -230,6 +230,30 @@ class aura_ascension_harvester : public AuraScript
     }
 };
 
+class aura_ascension_reaper_ghastly_form : public AuraScript
+{
+    PrepareAuraScript(aura_ascension_reaper_ghastly_form);
+
+    static constexpr float AttackPowerCoefficient = 0.2f;
+
+    bool Load() override { return GetUnitOwner() && GetUnitOwner()->IsPlayer(); }
+
+    void CalculateAmount(AuraEffect const*, int32& amount, bool& canBeRecalculated)
+    {
+        if (Unit* owner = GetUnitOwner())
+            amount += int32(owner->GetTotalAttackPowerValue(BASE_ATTACK) * AttackPowerCoefficient);
+
+        canBeRecalculated = false;
+    }
+
+    void Register() override
+    {
+        DoEffectCalcAmount += AuraEffectCalcAmountFn(
+            aura_ascension_reaper_ghastly_form::CalculateAmount, EFFECT_0,
+            SPELL_AURA_SCHOOL_ABSORB);
+    }
+};
+
 class aura_ascension_jailers_call : public AuraScript
 {
     PrepareAuraScript(aura_ascension_jailers_call);
@@ -351,5 +375,6 @@ void AddSC_AscensionReaperTalents()
     RegisterSpellScript(aura_ascension_harvester);
     RegisterSpellScript(aura_ascension_jailers_call);
     RegisterSpellScript(aura_ascension_reaper_blood_frenzy);
+    RegisterSpellScript(aura_ascension_reaper_ghastly_form);
     new reaper_talent_events();
 }
