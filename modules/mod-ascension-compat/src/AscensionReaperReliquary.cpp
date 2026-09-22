@@ -64,7 +64,8 @@ class spell_reaper_reliquary_of_the_lost : public SpellScript
         if (Aura* stored = caster->AddAura(SPELL_STORED_BOLTS, caster))
             stored->SetStackAmount(uint8(bolts));
 
-        caster->m_Events.AddEventAtOffset(new ReliquaryBolts(caster, 0, bolts), 0ms);
+        caster->m_Events.AddEventAtOffset(new ReliquaryBolts(caster, 0, bolts),
+            Milliseconds(BOLT_INTERVAL_MS));
 
         for (uint32 index = 0; index < bolts; ++index)
             caster->CastSpell(caster, SPELL_VISUAL_BOLTS[index], true);
