@@ -223,6 +223,8 @@ void AddSC_AscensionChronomancerMovement();
 void AddSC_AscensionAdventurerCache();
 void AddSC_AscensionBankVoucher();
 void AddSC_AscensionRunePouches();
+void AddSC_AscensionPrestigiousCache();
+void AddSC_AscensionCallboardCache();
 void AddSC_AscensionFeatherOfAncients();
 void AddSC_AscensionReaperHaunt();
 void AddSC_AscensionReaperRuin();
@@ -453,6 +455,8 @@ void Addmod_ascension_compatScripts()
     AddSC_AscensionAdventurerCache();
     AddSC_AscensionBankVoucher();
     AddSC_AscensionRunePouches();
+    AddSC_AscensionPrestigiousCache();
+    AddSC_AscensionCallboardCache();
     AddSC_AscensionFeatherOfAncients();
     AddSC_AscensionReaperHaunt();
     AddSC_AscensionReaperRuin();
