@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright (C) 2016+ AzerothCore <www.azerothcore.org>, released under GNU
  * AGPL v3 license:
  * https://github.com/azerothcore/azerothcore-wotlk/blob/master/LICENSE-AGPL3
@@ -120,7 +120,6 @@ constexpr uint16 SMSG_APPEARANCE_ADDED = 0x069B;
 constexpr uint16 SMSG_APPEARANCE_OUTFIT_INFO = 0x069D;
 constexpr uint16 SMSG_CAN_SEE_APPEARANCES_INFO = 0x06A2;
 constexpr uint16 CMSG_SET_CAN_SEE_APPEARANCES = 0x06A3;
-constexpr uint16 CMSG_VANITY_REQUEST_DELIVERY = 0x06A8;
 constexpr uint16 SMSG_VANITY_COLLECTION_INFO = 0x06F7;
 constexpr uint16 SMSG_VANITY_COLLECTION_ADDED = 0x06F8;
 
@@ -159,7 +158,6 @@ constexpr ExtensionOpcodeIdentity EXTENSION_OPCODES[] = {
     {SMSG_CAN_SEE_APPEARANCES_INFO, "SMSG_CAN_SEE_APPEARANCES_INFO"},
     {CMSG_SET_CAN_SEE_APPEARANCES, "CMSG_SET_CAN_SEE_APPEARANCES"},
     {0x06B9, "CMSG_QUERY_CUSTOM_STORE"},
-    {CMSG_VANITY_REQUEST_DELIVERY, "CMSG_VANITY_REQUEST_DELIVERY"},
     {SMSG_VANITY_COLLECTION_INFO, "SMSG_VANITY_COLLECTION_INFO"},
     {SMSG_VANITY_COLLECTION_ADDED, "SMSG_VANITY_COLLECTION_ADDED"},
     {SMSG_QUERY_CUSTOM_STORE_RESULT, "SMSG_QUERY_CUSTOM_STORE_RESULT"},
@@ -3972,7 +3970,7 @@ private:
       case CMSG_SET_CAN_SEE_APPEARANCES:
         HandleSetAppearanceVisibility(player, packet);
         break;
-      case CMSG_VANITY_REQUEST_DELIVERY:
+      case CMSG_CUSTOM_ASCENSION_POINT_SPEND_REQUEST:
         HandleVanityDeliveryRequest(player, packet);
         break;
       default:
@@ -3986,7 +3984,9 @@ private:
   }
 
   void HandleVanityDeliveryRequest(Player *player, WorldPacket &packet) {
-    if (packet.size() < sizeof(uint32))
+    constexpr uint8 REQUEST_VANITY_DELIVERY = 2;
+
+    if (packet.size() < sizeof(uint8) + sizeof(uint32))
     {
       LOG_WARN("module.ascension_compat",
                "Malformed vanity delivery request payload={} bytes from {}",
@@ -3994,7 +3994,16 @@ private:
       return;
     }
 
-    uint32 itemId = packet.read<uint32>(0);
+    uint8 kind = packet.read<uint8>(0);
+    uint32 itemId = packet.read<uint32>(sizeof(uint8));
+    if (kind != REQUEST_VANITY_DELIVERY)
+    {
+      LOG_INFO("module.ascension_compat",
+               "Unhandled Ascension point-spend request kind={} value={} from {}",
+               kind, itemId, player->GetName());
+      return;
+    }
+
     LOG_INFO("module.ascension_compat", "Vanity delivery requested: item {} for {}",
              itemId, player->GetName());
     DeliverLocalVanityItem(player, itemId);
@@ -4762,7 +4771,7 @@ public:
 
     if (opcode == CMSG_APPLY_APPEARANCES ||
         opcode == CMSG_SET_CAN_SEE_APPEARANCES ||
-        opcode == CMSG_VANITY_REQUEST_DELIVERY) {
+        opcode == CMSG_CUSTOM_ASCENSION_POINT_SPEND_REQUEST) {
       AscensionCollectionService::Instance().QueueClientPacket(
           session->GetAccountId(), packet);
     }
