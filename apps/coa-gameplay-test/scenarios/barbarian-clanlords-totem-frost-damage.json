@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "name": "Barbarian: Clanlord's Totem makes nearby allies deal extra Frost damage on direct hits",
+  "contract": "Clanlord's Totem 804737: 'The totem emanates an aura for 8 sec, causing allied players (party or raid members, target 56) within range to deal ${$AP*0.35} additional damage as Frost damage when they deal direct damage.' The ability hands 560530 to the allies in range; 560530 is a proc aura (231) that must fire Frost damage 560529 on the ally's direct damage.",
+  "timeout_ms": 90000,
+  "players": [
+    { "id": "b", "race": 1, "class": 12, "level": 80 },
+    { "id": "ally", "race": 1, "class": 1, "level": 80, "melee_hit_rating": 10000, "expertise_rating": 10000 }
+  ],
+  "creatures": [{ "id": "d", "owner": "ally", "entry": 299, "level": 80, "distance": 2, "health": 1000000 }],
+  "location": { "map": 0, "x": -8917.41, "y": -115.853, "z": 82.3711, "o": 0 },
+  "steps": [
+    { "action": "wait", "ms": 4000 },
+    { "action": "learn", "actor": "b", "spell": 804737 },
+    { "action": "group", "actor": "b", "target": "ally" },
+    { "action": "cast", "actor": "b", "spell": 804737, "destination": { "x": -8917.41, "y": -115.853, "z": 82.3711 } },
+    { "action": "assert", "label": "Totem cast accepted", "actor": "b", "metric": "cast_failure", "spell": 804737, "equals": 0 },
+    { "action": "assert", "label": "The ally carries the totem aura", "actor": "ally", "metric": "aura", "spell": 560530, "equals": 1, "within_ms": 3000 },
+    { "action": "attack", "actor": "ally", "target": "d" },
+    { "action": "assert", "label": "The ally's direct hits deal the extra Frost damage", "actor": "ally", "metric": "spell_damage_count", "spell": 560529, "target": "d", "min": 1, "within_ms": 6000 },
+    { "action": "assert", "label": "The Frost damage carries the Barbarian's attack power share", "actor": "ally", "metric": "spell_damage_total", "spell": 560529, "target": "d", "min": 50 }
+  ]
+}
