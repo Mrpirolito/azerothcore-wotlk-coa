@@ -1053,7 +1053,7 @@ void ApplyClientSpellCharges(SpellInfo* spellInfo)
 
 void DisarmUnmaskedCooldownModifier(SpellInfo* spellInfo)
 {
-    if (!IsCustomClassFamily(spellInfo->SpellFamilyName))
+    if (spellInfo->SpellFamilyName != uint32(CLASS_REAPER) + 6)
         return;
 
     for (SpellEffectInfo& effect : spellInfo->Effects)
