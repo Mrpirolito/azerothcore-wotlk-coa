@@ -1,5 +1,6 @@
 /* Copyright (C) 2016+ AzerothCore, GNU AGPL v3. */
 
+#include "Player.h"
 #include "ScriptMgr.h"
 #include "SpellAuraEffects.h"
 #include "SpellMgr.h"
@@ -11,6 +12,11 @@
 
 namespace
 {
+enum RaidDamageAuraSpells : uint32
+{
+    Exhaustion = 573255
+};
+
 enum class RaidAuraScaling
 {
     AttackPower,
@@ -29,7 +35,6 @@ struct RaidDamageAura
 constexpr RaidDamageAura RaidDamageAuras[] =
 {
     {560530, RaidAuraScaling::AttackPower, 0.35f},
-    {573241, RaidAuraScaling::AttackPower, 0.35f},
     {537248, RaidAuraScaling::RangedAttackPower, 0.35f},
     {520839, RaidAuraScaling::ShadowSpellPower, 0.6f},
     {520929, RaidAuraScaling::ArcaneSpellPower, 0.7f}
@@ -54,6 +59,26 @@ float ScalingValue(Unit* source, RaidAuraScaling scaling)
     return 0.0f;
 }
 
+class spell_ascension_raid_damage_aura : public SpellScript
+{
+    PrepareSpellScript(spell_ascension_raid_damage_aura);
+
+    void SkipExhausted(std::list<WorldObject*>& targets)
+    {
+        targets.remove_if([](WorldObject* target)
+        {
+            Player* player = target->ToPlayer();
+            return !player || player->HasAura(Exhaustion);
+        });
+    }
+
+    void Register() override
+    {
+        OnObjectAreaTargetSelect += SpellObjectAreaTargetSelectFn(spell_ascension_raid_damage_aura::SkipExhausted,
+            EFFECT_ALL, TARGET_UNIT_CASTER_AREA_RAID);
+    }
+};
+
 class aura_ascension_raid_damage_aura : public AuraScript
 {
     PrepareAuraScript(aura_ascension_raid_damage_aura);
@@ -66,19 +91,30 @@ class aura_ascension_raid_damage_aura : public AuraScript
                 0.0f, float(std::numeric_limits<int32>::max() / 2)));
     }
 
+    bool Check(ProcEventInfo& event)
+    {
+        Unit* ally = GetTarget();
+        Unit* victim = event.GetActionTarget();
+        DamageInfo const* damage = event.GetDamageInfo();
+        AuraEffect const* effect = GetEffect(EFFECT_0);
+        return ally->IsAlive() && event.GetActor() == ally && victim && victim != ally &&
+            !ally->IsFriendlyTo(victim) && damage && damage->GetDamage() &&
+            !(event.GetTypeMask() & PROC_FLAG_DONE_PERIODIC) && effect && effect->GetAmount() > 0;
+    }
+
     void Proc(AuraEffect const* effect, ProcEventInfo& event)
     {
         PreventDefaultAction();
         Unit* ally = GetTarget();
-        if (Unit* victim = event.GetActionTarget(); victim && victim != ally && effect->GetAmount() > 0)
-            ally->CastCustomSpell(effect->GetSpellInfo()->Effects[EFFECT_0].TriggerSpell, SPELLVALUE_BASE_POINT0,
-                effect->GetAmount(), victim, TRIGGERED_FULL_MASK, nullptr, effect, ally->GetGUID());
+        ally->CastCustomSpell(effect->GetSpellInfo()->Effects[EFFECT_0].TriggerSpell, SPELLVALUE_BASE_POINT0,
+            effect->GetAmount(), event.GetActionTarget(), TRIGGERED_FULL_MASK, nullptr, effect, ally->GetGUID());
     }
 
     void Register() override
     {
         DoEffectCalcAmount += AuraEffectCalcAmountFn(aura_ascension_raid_damage_aura::Amount, EFFECT_0,
             SPELL_AURA_PROC_TRIGGER_SPELL_WITH_VALUE);
+        DoCheckProc += AuraCheckProcFn(aura_ascension_raid_damage_aura::Check);
         OnEffectProc += AuraEffectProcFn(aura_ascension_raid_damage_aura::Proc, EFFECT_0,
             SPELL_AURA_PROC_TRIGGER_SPELL_WITH_VALUE);
     }
@@ -87,5 +123,6 @@ class aura_ascension_raid_damage_aura : public AuraScript
 
 void AddSC_AscensionRaidDamageAuras()
 {
+    RegisterSpellScript(spell_ascension_raid_damage_aura);
     RegisterSpellScript(aura_ascension_raid_damage_aura);
 }
