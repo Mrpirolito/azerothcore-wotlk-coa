@@ -69,6 +69,8 @@ namespace
     // nobody could buy; each is asked for through the core, never built here (see the file header).
     constexpr bool ONLY_TRAINABLE_ROWS = true;
 
+    constexpr Milliseconds WINDOW_RESEND_DELAY = 250ms;
+
     bool IsBook(Creature const* creature)
     {
         if (!creature)
@@ -153,8 +155,15 @@ public:
 
         // Learning a profession, buying a rank or learning a recipe changes other rows too:
         // what the purchase made available, and what it made known. The client only sees that
-        // in a list sent after the purchase.
-        player->GetSession()->SendTrainerList(book, ONLY_TRAINABLE_ROWS);
+        // in a list sent after the purchase, and only once it is past the purchase: on the frame
+        // after a spell is learned it re-reads the open window's rank rows itself and draws a
+        // known rank as available, so a list sent with the purchase is painted over.
+        ObjectGuid const bookGuid = book->GetGUID();
+        player->m_Events.AddEventAtOffset([player, bookGuid]
+        {
+            if (Creature* openBook = player->GetNPCIfCanInteractWith(bookGuid, UNIT_NPC_FLAG_TRAINER); IsBook(openBook))
+                player->GetSession()->SendTrainerList(openBook, ONLY_TRAINABLE_ROWS);
+        }, WINDOW_RESEND_DELAY);
         LOG_DEBUG("module.bookofartisans", "{} bought {} from book {}; window sent again.",
                   player->GetName(), spellId, book->GetEntry());
         return false;

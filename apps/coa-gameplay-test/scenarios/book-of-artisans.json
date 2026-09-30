@@ -50,7 +50,7 @@
     { "action": "trainer_buy", "actor": "artisan", "target": "book", "spell": 3911, "label": "learn tailoring from the book" },
     { "action": "assert", "actor": "artisan", "metric": "spellbook_buy_succeeded", "spell": 3911, "equals": 1, "label": "the profession was taught" },
     { "action": "assert", "actor": "artisan", "metric": "knows_spell", "spell": 3908, "equals": 1, "label": "the tailoring skill spell itself is what the purchase grants" },
-    { "action": "assert", "actor": "artisan", "metric": "trainer_list_packets", "equals": 3, "label": "the book re-published the window with the purchase" },
+    { "action": "assert", "actor": "artisan", "metric": "trainer_list_packets", "equals": 3, "within_ms": 2000, "label": "the book re-published the window with the purchase" },
     { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 3911, "equals": 2, "label": "the profession row reads known in it" },
     { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 2393, "equals": 0, "label": "knowing tailoring brings its skill-1 patterns into the book, available" },
     { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 2402, "equals": -1, "label": "a pattern that needs skill 75 is not a row yet at skill 1" },
@@ -59,7 +59,7 @@
     { "action": "trainer_buy", "actor": "artisan", "target": "book", "spell": 3912, "label": "ask for the next rank at apprentice skill" },
     { "action": "assert", "actor": "artisan", "metric": "spellbook_buy_failed", "spell": 3912, "equals": 1, "label": "the sale is refused - not enough skill - even though the row is not on screen" },
     { "action": "assert", "actor": "artisan", "metric": "knows_spell", "spell": 3909, "equals": 0, "label": "nothing was learned by buying a rank too high" },
-    { "action": "assert", "actor": "artisan", "metric": "trainer_list_packets", "equals": 4, "label": "the refusal carries a fresh window too" },
+    { "action": "assert", "actor": "artisan", "metric": "trainer_list_packets", "equals": 4, "within_ms": 2000, "label": "the refusal carries a fresh window too" },
     { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 3912, "equals": -1, "label": "in which the rank is still absent: the skill has not moved" },
 
     { "action": "set_skill", "actor": "artisan", "skill": 197, "value": 75, "maximum": 75, "label": "raise tailoring to 75 within its apprentice maximum, the way crafting does" },
@@ -75,7 +75,7 @@
     { "action": "trainer_buy", "actor": "artisan", "target": "book", "spell": 3912, "label": "buy the rank in the same window" },
     { "action": "assert", "actor": "artisan", "metric": "spellbook_buy_succeeded", "spell": 3912, "equals": 1, "label": "the book advanced the profession" },
     { "action": "assert", "actor": "artisan", "metric": "knows_spell", "spell": 3909, "equals": 1, "label": "the next tailoring rank spell is what the purchase grants" },
-    { "action": "assert", "actor": "artisan", "metric": "trainer_list_packets", "equals": 6, "label": "and the window was re-published again" },
+    { "action": "assert", "actor": "artisan", "metric": "trainer_list_packets", "equals": 6, "within_ms": 2000, "label": "and the window was re-published again" },
     { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 3912, "equals": 2, "label": "the rank stands in the list as a used row" },
 
     { "action": "gossip_hello", "actor": "artisan", "target": "beginner", "label": "right-click the Beginner's Book of Artisans" },
