@@ -23,6 +23,6 @@
     { "action": "cast", "label": "Veinburst the dummy", "actor": "b", "spell": 504260, "target": "d" },
     { "action": "assert", "label": "Veinburst landed", "actor": "b", "metric": "spell_damage_count", "spell": 504260, "target": "d", "min": 1, "within_ms": 5000 },
     { "action": "assert", "label": "Veinburst expended every shard", "actor": "b", "metric": "aura_stacks", "spell": 505366, "equals": 0, "within_ms": 2000 },
-    { "action": "assert", "label": "Each expended shard hit the dummy", "actor": "b", "metric": "spell_damage_count", "spell": 504115, "target": "d", "min": 1, "within_ms": 3000 }
+    { "action": "assert", "label": "Each expended shard hit the dummy, one hit per stored shard", "actor": "b", "metric": "spell_damage_count", "spell": 504115, "target": "d", "ratio_to": "shards", "min": 0.999, "max": 1.001, "within_ms": 3000 }
   ]
 }
