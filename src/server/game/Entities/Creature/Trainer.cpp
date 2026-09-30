@@ -214,6 +214,10 @@ namespace Trainer
                     return SpellState::Unavailable;
 
             hasLearnSpellEffect = true;
+            if (SpellLearnSkillNode const* learnedSkill = sSpellMgr->GetSpellLearnSkill(spellEffectInfo.TriggerSpell))
+                if (learnedSkill->maxvalue && player->GetPureMaxSkillValue(learnedSkill->skill) >= learnedSkill->maxvalue)
+                    continue;
+
             if (!player->HasSpell(spellEffectInfo.TriggerSpell))
                 knowsAllLearnedSpells = false;
 

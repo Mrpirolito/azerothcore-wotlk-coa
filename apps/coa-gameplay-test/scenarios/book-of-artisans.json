@@ -62,7 +62,7 @@
     { "action": "assert", "actor": "artisan", "metric": "trainer_list_packets", "equals": 4, "label": "the refusal carries a fresh window too" },
     { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 3912, "equals": -1, "label": "in which the rank is still absent: the skill has not moved" },
 
-    { "action": "set_skill", "actor": "artisan", "skill": 197, "value": 75, "maximum": 150, "label": "raise tailoring to 75, the way a craft or a GM command does" },
+    { "action": "set_skill", "actor": "artisan", "skill": 197, "value": 75, "maximum": 75, "label": "raise tailoring to 75 within its apprentice maximum, the way crafting does" },
     { "action": "gossip_hello", "actor": "artisan", "target": "book", "label": "right-click the book" },
     { "action": "gossip_select", "actor": "artisan", "option": 0, "label": "open the window again" },
     { "action": "assert", "actor": "artisan", "metric": "trainer_list_packets", "equals": 5, "label": "a third window was sent" },
