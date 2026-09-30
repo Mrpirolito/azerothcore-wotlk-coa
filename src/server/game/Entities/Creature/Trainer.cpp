@@ -73,15 +73,22 @@ namespace Trainer
             SpellInfo const* trainerSpellInfo = sSpellMgr->AssertSpellInfo(trainerSpell.SpellId);
 
             bool primaryProfessionFirstRank = false;
+            bool knownOnlyBySkillMaximum = false;
             for (SpellEffectInfo const& spellEffectInfo : trainerSpellInfo->GetEffects())
             {
                 if (!spellEffectInfo.IsEffect(SPELL_EFFECT_LEARN_SPELL))
                     continue;
 
+                if (spellState == SpellState::Known && !player->HasSpell(spellEffectInfo.TriggerSpell))
+                    knownOnlyBySkillMaximum = true;
+
                 SpellInfo const* learnedSpellInfo = sSpellMgr->GetSpellInfo(spellEffectInfo.TriggerSpell);
                 if (learnedSpellInfo && learnedSpellInfo->IsPrimaryProfessionFirstRank())
                     primaryProfessionFirstRank = true;
             }
+
+            if (knownOnlyBySkillMaximum)
+                continue;
 
             trainerList.Spells.emplace_back();
             WorldPackets::NPC::TrainerListSpell& trainerListSpell = trainerList.Spells.back();
