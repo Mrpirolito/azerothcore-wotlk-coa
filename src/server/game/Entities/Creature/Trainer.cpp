@@ -74,11 +74,13 @@ namespace Trainer
 
             bool primaryProfessionFirstRank = false;
             bool knownOnlyBySkillMaximum = false;
+            bool teachesLearnedSpell = false;
             for (SpellEffectInfo const& spellEffectInfo : trainerSpellInfo->GetEffects())
             {
                 if (!spellEffectInfo.IsEffect(SPELL_EFFECT_LEARN_SPELL))
                     continue;
 
+                teachesLearnedSpell = true;
                 if (spellState == SpellState::Known && !player->HasSpell(spellEffectInfo.TriggerSpell))
                     knownOnlyBySkillMaximum = true;
 
@@ -87,7 +89,7 @@ namespace Trainer
                     primaryProfessionFirstRank = true;
             }
 
-            if (knownOnlyBySkillMaximum)
+            if (knownOnlyBySkillMaximum || (onlyTrainable && spellState == SpellState::Known && teachesLearnedSpell))
                 continue;
 
             trainerList.Spells.emplace_back();

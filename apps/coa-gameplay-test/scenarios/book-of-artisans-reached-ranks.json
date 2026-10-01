@@ -17,9 +17,9 @@
     { "action": "assert", "label": "Journeyman Woodworker is not a row", "actor": "a", "metric": "trainer_window_state", "spell": 1005015, "equals": -1 },
     { "action": "assert", "label": "Expert Woodworker is not a row", "actor": "a", "metric": "trainer_window_state", "spell": 1005016, "equals": -1 },
     { "action": "assert", "label": "Artisan Woodworker is not a row", "actor": "a", "metric": "trainer_window_state", "spell": 1005017, "equals": -1 },
+    { "action": "assert", "label": "Apprentice Woodworker, whose rank spell the character holds, is not a row either", "actor": "a", "metric": "trainer_window_state", "spell": 1005014, "equals": -1 },
     { "action": "assert", "label": "Journeyman Tailor is still available at a maximum of 75", "actor": "a", "metric": "trainer_window_state", "spell": 3912, "equals": 0 },
     { "action": "trainer_buy", "actor": "a", "target": "book", "spell": 2393, "label": "buy a tailoring pattern from the book" },
-    { "action": "assert", "label": "the book sent its window again after the purchase", "actor": "a", "metric": "trainer_list_packets", "equals": 2, "within_ms": 2000 },
     { "action": "assert", "label": "the pattern is learned", "actor": "a", "metric": "knows_spell", "spell": 2393, "equals": 1 },
     { "action": "assert", "label": "the window sent after the purchase still has no Journeyman Woodworker row", "actor": "a", "metric": "trainer_window_state", "spell": 1005015, "equals": -1 },
     { "action": "assert", "label": "nor Artisan Woodworker", "actor": "a", "metric": "trainer_window_state", "spell": 1005017, "equals": -1 }

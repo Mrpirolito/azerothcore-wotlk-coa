@@ -16,7 +16,9 @@
  * nobody can buy: a character who has never held a needle gets shown Grand Master Tailoring, and
  * there is nothing to do about it from there. So the books ask for the trainable rows
  * (`SendTrainerList`'s `onlyTrainable`, a plain argument to `Trainer::SendSpells`): the entry rank
- * of each profession, the ranks they have reached, and the ranks they already know, drawn greyed.
+ * of each profession and the ranks they have reached. A rank they already hold is left out too: the
+ * client re-reads the open window's rank rows whenever a spell is learned and draws a held rank as
+ * available again, so a greyed rank row would turn green after the next recipe was trained.
  * Train the apprentice rank, put the skill to 50, and journeyman is in the next window sent.
  *
  * What the module adds is the two things data cannot express:
@@ -68,8 +70,6 @@ namespace
     // The books hold every rank of every profession at once, and want the window without the rows
     // nobody could buy; each is asked for through the core, never built here (see the file header).
     constexpr bool ONLY_TRAINABLE_ROWS = true;
-
-    constexpr Milliseconds WINDOW_RESEND_DELAY = 250ms;
 
     bool IsBook(Creature const* creature)
     {
@@ -155,15 +155,8 @@ public:
 
         // Learning a profession, buying a rank or learning a recipe changes other rows too:
         // what the purchase made available, and what it made known. The client only sees that
-        // in a list sent after the purchase, and only once it is past the purchase: on the frame
-        // after a spell is learned it re-reads the open window's rank rows itself and draws a
-        // known rank as available, so a list sent with the purchase is painted over.
-        ObjectGuid const bookGuid = book->GetGUID();
-        player->m_Events.AddEventAtOffset([player, bookGuid]
-        {
-            if (Creature* openBook = player->GetNPCIfCanInteractWith(bookGuid, UNIT_NPC_FLAG_TRAINER); IsBook(openBook))
-                player->GetSession()->SendTrainerList(openBook, ONLY_TRAINABLE_ROWS);
-        }, WINDOW_RESEND_DELAY);
+        // in a list sent after the purchase.
+        player->GetSession()->SendTrainerList(book, ONLY_TRAINABLE_ROWS);
         LOG_DEBUG("module.bookofartisans", "{} bought {} from book {}; window sent again.",
                   player->GetName(), spellId, book->GetEntry());
         return false;

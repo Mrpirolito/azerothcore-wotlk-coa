@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "name": "Book of Artisans trains what the character can train, and sells a trade supplier's shelves",
-  "contract": "A book answers a right click with the original's page: \"I require training!\" and \"I would like to browse your goods.\" The first option opens the trainer window filtered to the rows this character can train today - the entry rank of every profession, the ranks and the recipes of the trades they know that their skill has reached, and what they already know, each marked available (0), unavailable (1) or known (2) by a placed trainer's own rules, with a rank above their skill absent from the window rather than painted red. The second option opens a vendor list holding Edna Mullby's own rows, item for item and price for price. The beginner's book carries the same page and the same shelves, but its trainer holds one row per profession: it teaches the first rank and nothing above it. Purchases go through the same requirement checks wherever they are made.",
+  "contract": "A book answers a right click with the original's page: \"I require training!\" and \"I would like to browse your goods.\" The first option opens the trainer window filtered to the rows this character can train today - the entry rank of every profession, the ranks and the recipes of the trades they know that their skill has reached, and the recipes they already know, each marked available (0), unavailable (1) or known (2) by a placed trainer's own rules, with a rank above their skill absent from the window rather than painted red, and a rank they already hold absent too, since the client redraws a held rank row as available after the next spell is learned. The second option opens a vendor list holding Edna Mullby's own rows, item for item and price for price. The beginner's book carries the same page and the same shelves, but its trainer holds one row per profession: it teaches the first rank and nothing above it. Purchases go through the same requirement checks wherever they are made.",
   "timeout_ms": 180000,
   "players": [
     { "id": "artisan", "race": 1, "class": 1, "level": 60 }
@@ -50,8 +50,8 @@
     { "action": "trainer_buy", "actor": "artisan", "target": "book", "spell": 3911, "label": "learn tailoring from the book" },
     { "action": "assert", "actor": "artisan", "metric": "spellbook_buy_succeeded", "spell": 3911, "equals": 1, "label": "the profession was taught" },
     { "action": "assert", "actor": "artisan", "metric": "knows_spell", "spell": 3908, "equals": 1, "label": "the tailoring skill spell itself is what the purchase grants" },
-    { "action": "assert", "actor": "artisan", "metric": "trainer_list_packets", "equals": 3, "within_ms": 2000, "label": "the book re-published the window with the purchase" },
-    { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 3911, "equals": 2, "label": "the profession row reads known in it" },
+    { "action": "assert", "actor": "artisan", "metric": "trainer_list_packets", "equals": 3, "label": "the book re-published the window with the purchase" },
+    { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 3911, "equals": -1, "label": "the profession the character now holds is no longer a row: the client would redraw it as available" },
     { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 2393, "equals": 0, "label": "knowing tailoring brings its skill-1 patterns into the book, available" },
     { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 2402, "equals": -1, "label": "a pattern that needs skill 75 is not a row yet at skill 1" },
     { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 7420, "equals": -1, "label": "and another trade's formula stays out" },
@@ -59,7 +59,7 @@
     { "action": "trainer_buy", "actor": "artisan", "target": "book", "spell": 3912, "label": "ask for the next rank at apprentice skill" },
     { "action": "assert", "actor": "artisan", "metric": "spellbook_buy_failed", "spell": 3912, "equals": 1, "label": "the sale is refused - not enough skill - even though the row is not on screen" },
     { "action": "assert", "actor": "artisan", "metric": "knows_spell", "spell": 3909, "equals": 0, "label": "nothing was learned by buying a rank too high" },
-    { "action": "assert", "actor": "artisan", "metric": "trainer_list_packets", "equals": 4, "within_ms": 2000, "label": "the refusal carries a fresh window too" },
+    { "action": "assert", "actor": "artisan", "metric": "trainer_list_packets", "equals": 4, "label": "the refusal carries a fresh window too" },
     { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 3912, "equals": -1, "label": "in which the rank is still absent: the skill has not moved" },
 
     { "action": "set_skill", "actor": "artisan", "skill": 197, "value": 75, "maximum": 75, "label": "raise tailoring to 75 within its apprentice maximum, the way crafting does" },
@@ -69,21 +69,21 @@
     { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 3912, "equals": 0, "label": "Journeyman Tailor is in the window now the skill is there" },
     { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 2402, "equals": 0, "label": "the skill-75 pattern is available now" },
     { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 2406, "equals": -1, "label": "a pattern that needs skill 100 is still not a row" },
-    { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 3911, "equals": 2, "label": "the profession learned earlier is still known" },
+    { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 3911, "equals": -1, "label": "the profession learned earlier is still not a row" },
     { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 51298, "equals": -1, "label": "the top of the ladder is still not a row at skill 75" },
 
     { "action": "trainer_buy", "actor": "artisan", "target": "book", "spell": 3912, "label": "buy the rank in the same window" },
     { "action": "assert", "actor": "artisan", "metric": "spellbook_buy_succeeded", "spell": 3912, "equals": 1, "label": "the book advanced the profession" },
     { "action": "assert", "actor": "artisan", "metric": "knows_spell", "spell": 3909, "equals": 1, "label": "the next tailoring rank spell is what the purchase grants" },
-    { "action": "assert", "actor": "artisan", "metric": "trainer_list_packets", "equals": 6, "within_ms": 2000, "label": "and the window was re-published again" },
-    { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 3912, "equals": 2, "label": "the rank stands in the list as a used row" },
+    { "action": "assert", "actor": "artisan", "metric": "trainer_list_packets", "equals": 6, "label": "and the window was re-published again" },
+    { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 3912, "equals": -1, "label": "the rank just bought leaves the list" },
 
     { "action": "gossip_hello", "actor": "artisan", "target": "beginner", "label": "right-click the Beginner's Book of Artisans" },
     { "action": "assert", "actor": "artisan", "metric": "gossip_options", "equals": 2, "label": "the beginner's book carries the same page" },
     { "action": "gossip_select", "actor": "artisan", "option": 0, "label": "ask it for training" },
     { "action": "assert", "actor": "artisan", "metric": "trainer_list_packets", "equals": 7, "label": "one window for it" },
     { "action": "assert", "actor": "artisan", "metric": "trainer_window_rows", "equals": 16, "label": "its ladder is one row per trade: the first rank, and nothing above it" },
-    { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 3911, "equals": 2, "label": "the trade the character already learned reads known here as well" },
+    { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 3911, "equals": -1, "label": "the trade the character already learned is not a row here either" },
     { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 3912, "equals": -1, "label": "and the rank above it is not in this book at all, at skill 75" },
     { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 51298, "equals": -1, "label": "nor any Grand Master row" },
 
