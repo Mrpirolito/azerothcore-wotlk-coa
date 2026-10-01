@@ -275,8 +275,9 @@ sold or dropped where it always was. What the SQL leaves behind is checked by re
 * 200002 holds the same rows cut at `ReqSkillRank = 0` - 17 of them, row for row identical to the
   full book's;
 * the full book then adds the recipes profession trainers (`trainer`.`Type` 2) teach under the eleven
-  crafting and secondary trades, each at the lowest requirement any trainer asks; the beginner's
-  book holds no recipe.
+  crafting and secondary trades, each at the lowest requirement any trainer asks
+  (`data/sql/updates/pending_db_world/rev_20261001_10_book_of_artisans_recipes.sql`, which sorts
+  after this module's file and touches none of its rows); the beginner's book holds no recipe.
 
 **The book, in a real worldserver** (`apps/coa-gameplay-test/scenarios/book-of-artisans.json`,
 69 steps, 52 of them assertions) does what a player does: it right-clicks, reads the page, and

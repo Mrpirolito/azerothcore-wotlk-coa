@@ -82,7 +82,7 @@
     { "action": "assert", "actor": "artisan", "metric": "gossip_options", "equals": 2, "label": "the beginner's book carries the same page" },
     { "action": "gossip_select", "actor": "artisan", "option": 0, "label": "ask it for training" },
     { "action": "assert", "actor": "artisan", "metric": "trainer_list_packets", "equals": 7, "label": "one window for it" },
-    { "action": "assert", "actor": "artisan", "metric": "trainer_window_rows", "equals": 16, "label": "its ladder is one row per trade: the first rank, and nothing above it" },
+    { "action": "assert", "actor": "artisan", "metric": "trainer_window_rows", "equals": 15, "label": "its ladder is one row per trade: the first rank, and nothing above it - less tailoring, which the character already holds" },
     { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 3911, "equals": -1, "label": "the trade the character already learned is not a row here either" },
     { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 3912, "equals": -1, "label": "and the rank above it is not in this book at all, at skill 75" },
     { "action": "assert", "actor": "artisan", "metric": "trainer_window_state", "spell": 51298, "equals": -1, "label": "nor any Grand Master row" },
