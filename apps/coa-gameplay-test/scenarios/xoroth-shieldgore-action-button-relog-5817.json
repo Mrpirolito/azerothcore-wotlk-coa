@@ -1,0 +1,116 @@
+{
+  "schema": 1,
+  "name": "Knight of Xoroth: a Shieldgore button survives relog (COA-5817)",
+  "contract": [
+    "Shieldgore (301302) replaces Infernal Strike (801016) with the Shieldgore rank for the level. A button holding",
+    "Shieldgore is saved as Infernal Strike. On login, AscensionClassService synchronized the replacement, which sent",
+    "SMSG_SUPERCEDED_SPELL (300) 801016 -> 806870, and then reloaded the action bars asynchronously, which sent",
+    "SMSG_ACTION_BUTTONS with Infernal Strike after the swap. The client no longer had Infernal Strike in its",
+    "spellbook, so the button came back empty. Every active replacement is now announced again right after that",
+    "reload, so the client swaps the reloaded button. The server's own bar keeps the original, as",
+    "temporary-replacement-button-survives-relog requires."
+  ],
+  "timeout_ms": 90000,
+  "players": [
+    {
+      "id": "k",
+      "race": 1,
+      "class": 17,
+      "level": 31
+    }
+  ],
+  "steps": [
+    {
+      "action": "wait",
+      "label": "Let login hooks settle",
+      "ms": 5000
+    },
+    {
+      "action": "specialization",
+      "label": "Choose Defiance",
+      "actor": "k",
+      "id": 17
+    },
+    {
+      "action": "learn",
+      "actor": "k",
+      "spell": 801016
+    },
+    {
+      "action": "learn",
+      "label": "Pick the Shieldgore talent",
+      "actor": "k",
+      "spell": 301302
+    },
+    {
+      "action": "wait",
+      "ms": 1000
+    },
+    {
+      "action": "assert",
+      "label": "SETUP: Infernal Strike shows as Shieldgore Rank 3",
+      "actor": "k",
+      "metric": "temporary_spell_replacement",
+      "spell": 801016,
+      "equals": 806870,
+      "within_ms": 3000
+    },
+    {
+      "action": "set_action_button",
+      "actor": "k",
+      "button": 2,
+      "spell": 806870
+    },
+    {
+      "action": "assert",
+      "label": "SETUP: the bar holds Shieldgore",
+      "actor": "k",
+      "metric": "action_button",
+      "button": 2,
+      "equals": 806870
+    },
+    {
+      "action": "assert",
+      "label": "The Shieldgore button is saved as Infernal Strike",
+      "actor": "k",
+      "metric": "persisted_action_button",
+      "button": 2,
+      "equals": 801016
+    },
+    {
+      "action": "relog",
+      "actor": "k"
+    },
+    {
+      "action": "wait",
+      "ms": 3000
+    },
+    {
+      "action": "assert",
+      "label": "The server bar holds Infernal Strike, the spell the replacement stands in for",
+      "actor": "k",
+      "metric": "action_button",
+      "button": 2,
+      "equals": 801016,
+      "within_ms": 5000
+    },
+    {
+      "action": "assert",
+      "label": "Shieldgore stands in for Infernal Strike again",
+      "actor": "k",
+      "metric": "temporary_spell_replacement",
+      "spell": 801016,
+      "equals": 806870,
+      "within_ms": 3000
+    },
+    {
+      "action": "assert",
+      "label": "DISCRIMINATING: the swap is announced again after the reloaded bars reach the client",
+      "actor": "k",
+      "metric": "server_packets",
+      "opcode": 300,
+      "min": 2,
+      "within_ms": 3000
+    }
+  ]
+}

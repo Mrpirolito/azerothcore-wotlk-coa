@@ -1415,7 +1415,20 @@ public:
         .WithPreparedCallback([session, slot](PreparedQueryResult result)
         {
             if (Player* owner = session->GetPlayer(); owner && ActiveSlot(owner) == slot)
+            {
                 owner->LoadActions(result);
+                for (auto const& [id, spell] : owner->GetSpellMap())
+                {
+                    uint32 const replacement = owner->GetTemporarySpellReplacement(id);
+                    if (replacement == id)
+                        continue;
+                    sScriptMgr->OnPlayerTemporarySpellReplacementNotice(owner, id, replacement, false);
+                    WorldPacket packet(SMSG_SUPERCEDED_SPELL, 8);
+                    packet << id << replacement;
+                    session->SendPacket(&packet);
+                    sScriptMgr->OnPlayerTemporarySpellReplacementNotice(owner, id, replacement, true);
+                }
+            }
         }));
   }
 
